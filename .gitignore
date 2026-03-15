@@ -1,0 +1,31 @@
+# ─── Python / Django ───────────────────────────────────────────────────────────
+backend/.env
+backend/.env.*
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/db.sqlite3
+backend/media/
+backend/staticfiles/
+backend/*.log
+
+# ─── Frontend ──────────────────────────────────────────────────────────────────
+frontend/node_modules/
+# NOTE: frontend/dist/ is intentionally NOT ignored.
+# The built assets are committed so Render can serve them via Django without
+# needing a Node.js build step.
+
+# ─── OS / IDE ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── Misc ──────────────────────────────────────────────────────────────────────
+*.egg-info/
+dist/
+*.log
