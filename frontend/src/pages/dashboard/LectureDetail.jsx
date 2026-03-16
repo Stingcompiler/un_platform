@@ -112,7 +112,7 @@ export default function LectureDetail() {
                                 {bunnyVideoUrl ? (
                                     /* Bunny Stream embed player */
                                     <iframe
-                                        src={bunnyVideoUrl}
+                                        src={bunnyVideoUrl ? bunnyVideoUrl.replace('iframe.mediadelivery.net', 'video.eust.edu.sd') : ''}
                                         className="w-full h-full"
                                         allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
                                         allowFullScreen
