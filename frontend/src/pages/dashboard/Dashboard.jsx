@@ -63,6 +63,7 @@ export default function Dashboard() {
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
                     { path: '/dashboard/operations', icon: Activity, label: 'سجل العمليات' },
+                    { path: '/dashboard/my-courses', icon: BookOpen, label: 'موادي' },
                 ];
             case 'supervisor':
                 return [
@@ -70,6 +71,7 @@ export default function Dashboard() {
                     { path: '/dashboard/courses', icon: BookOpen, label: 'المواد' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
+                    { path: '/dashboard/my-courses', icon: BookOpen, label: 'موادي' },
                 ];
             case 'teacher':
             case 'ta':

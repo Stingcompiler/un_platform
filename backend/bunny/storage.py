@@ -64,17 +64,19 @@ class BunnyStorage(Storage):
         content_type, _ = mimetypes.guess_type(name)
         content_type = content_type or 'application/octet-stream'
 
-        # Reset file position — Django may have read it already for validation
+        # Reset file position
         if hasattr(content, 'seek'):
             content.seek(0)
-        file_data = content.read()
-
+            
+        # ✅ التعديل السحري: تمرير content مباشرة ليتم رفعه كـ Stream قطعة قطعة
+        # بدون قراءته بالكامل في الذاكرة (RAM) لحماية سيرفر ريندر من التوقف.
         response = requests.put(
             upload_url,
-            data=file_data,
+            data=content,
             headers=self._get_headers(content_type=content_type),
             timeout=120,
         )
+
         response.raise_for_status()
         # Consume response body to allow connection reuse
         _ = response.content

@@ -223,7 +223,6 @@ class CourseInstructorViewSet(viewsets.ModelViewSet):
         instance = serializer.save()
         log_activity(user, 'create', 'تعيين مدرس', f'{instance.user} → {instance.course}', department=instance.course.department)
 
-
 class LectureViewSet(viewsets.ModelViewSet):
     """ViewSet for Lecture management"""
     queryset = Lecture.objects.all()
@@ -258,74 +257,23 @@ class LectureViewSet(viewsets.ModelViewSet):
         
         return queryset
     
-    def _handle_bunny_video(self, serializer_validated_data, title):
-        """
-        If a video_file was uploaded, push it to Bunny Stream.
-        Removes 'video_file' from validated_data (it's not a model field).
-        Returns (bunny_video_id, bunny_video_url) or (None, None).
-        Raises rest_framework.exceptions.APIException on Bunny API errors.
-        """
-        from django.conf import settings as django_settings
-        from rest_framework.exceptions import APIException
-        import requests as req_lib
-
-        video_file = serializer_validated_data.pop('video_file', None)
-        if not video_file:
-            return None, None
-
-        from rest_framework.exceptions import ValidationError
-
-        # Safety check: Bunny Stream must be configured
-        if not getattr(django_settings, 'BUNNY_STREAM_LIBRARY_ID', '') or \
-           not getattr(django_settings, 'BUNNY_STREAM_API_KEY', ''):
-            raise ValidationError(
-                'Bunny Stream is not configured. Set BUNNY_STREAM_LIBRARY_ID '
-                'and BUNNY_STREAM_API_KEY in your .env file.'
-            )
-
-        try:
-            result = bunny_stream.upload_video(title, video_file)
-            return result['video_id'], result['embed_url']
-        except req_lib.HTTPError as e:
-            raise ValidationError(f'Bunny Stream upload failed: {e}')
-        except req_lib.RequestException as e:
-            raise ValidationError(f'Bunny Stream connection error: {e}')
+    # ❌ تم حذف دالة _handle_bunny_video بالكامل
 
     def perform_create(self, serializer):
-        title = serializer.validated_data.get('title', 'Lecture Video')
-        bunny_id, bunny_url = self._handle_bunny_video(serializer.validated_data, title)
-
-        extra = {}
-        if bunny_id:
-            extra['bunny_video_id'] = bunny_id
-            extra['bunny_video_url'] = bunny_url
-
-        instance = serializer.save(created_by=self.request.user, **extra)
+        # حفظ مباشر.. جانغو سيتكفل برفع الفيديو إلى Bunny Storage عبر storage.py
+        instance = serializer.save(created_by=self.request.user)
         log_activity(self.request.user, 'create', 'محاضرة', instance.title, department=instance.course.department)
 
     def perform_update(self, serializer):
-        # Capture old bunny_video_id before saving
-        old_bunny_video_id = self.get_object().bunny_video_id
-        title = serializer.validated_data.get('title', self.get_object().title)
-
-        bunny_id, bunny_url = self._handle_bunny_video(serializer.validated_data, title)
-
-        extra = {}
-        if bunny_id:
-            # Delete old Bunny Stream video if there was one
-            if old_bunny_video_id:
-                bunny_stream.delete_video(old_bunny_video_id)
-            extra['bunny_video_id'] = bunny_id
-            extra['bunny_video_url'] = bunny_url
-
-        instance = serializer.save(**extra)
+        # تحديث مباشر وبسيط
+        instance = serializer.save()
         log_activity(self.request.user, 'update', 'محاضرة', instance.title, department=instance.course.department)
 
     def perform_destroy(self, instance):
+        # ❌ تم حذف كود حذف الفيديو من Bunny Stream
+        # ملاحظة: سيتم حذف السجل من قاعدة البيانات. 
+        # (يفضل دائماً ترك الفيديوهات في Storage كأرشيف أو استخدام مكتبات مثل django-cleanup لحذف الملفات التلقائي لاحقاً)
         log_activity(self.request.user, 'delete', 'محاضرة', instance.title, department=instance.course.department)
-        # Clean up Bunny Stream video if any
-        if instance.bunny_video_id:
-            bunny_stream.delete_video(instance.bunny_video_id)
         instance.delete()
 
 

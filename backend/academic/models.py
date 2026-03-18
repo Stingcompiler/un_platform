@@ -98,7 +98,6 @@ class CourseInstructor(models.Model):
     def __str__(self):
         return f"{self.user} - {self.course} ({self.get_role_display()})"
 
-
 class Lecture(models.Model):
     """Lecture content for a course"""
     TYPE_CHOICES = [
@@ -118,21 +117,18 @@ class Lecture(models.Model):
     lecture_type = models.CharField(max_length=10, choices=TYPE_CHOICES, verbose_name='النوع')
     order = models.PositiveIntegerField(default=0, verbose_name='الترتيب')
     
-    # File attachments
-    file = models.FileField(upload_to='lectures/', null=True, blank=True, verbose_name='ملف مرفق')
+    # File attachments (PDFs, PPTs)
+    file = models.FileField(upload_to='lectures/files/', null=True, blank=True, verbose_name='ملف مرفق')
 
-    # Bunny Stream video fields (replaces local video_file)
-    bunny_video_id = models.CharField(
-        max_length=100, null=True, blank=True,
-        verbose_name='معرّف فيديو Bunny Stream'
-    )
-    bunny_video_url = models.URLField(
-        null=True, blank=True,
-        verbose_name='رابط مشغّل فيديو Bunny',
-        help_text='رابط iframe للمشغّل المضمّن من Bunny Stream'
+    # 🚀 حقل الفيديو الجديد (يُرفع مباشرة لمساحة التخزين الخاصة بك ويمر عبر Cloudflare)
+    video_file = models.FileField(
+        upload_to='lectures/videos/', 
+        null=True, 
+        blank=True, 
+        verbose_name='ملف فيديو (MP4)'
     )
 
-    # External URLs
+    # External URLs (YouTube/Vimeo)
     video_url = models.URLField(null=True, blank=True, verbose_name='رابط فيديو خارجي', help_text='رابط يوتيوب أو فيميو')
     reference_url = models.URLField(null=True, blank=True, verbose_name='رابط المراجع')
     
@@ -153,7 +149,6 @@ class Lecture(models.Model):
     
     def __str__(self):
         return f"{self.course.code} - {self.title}"
-
 
 class Assignment(models.Model):
     """Assignment for a course"""

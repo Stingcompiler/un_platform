@@ -73,10 +73,11 @@ export default function LectureDetail() {
         );
     }
 
-    // Video priority: Bunny Stream > external YouTube/Vimeo URL
-    const bunnyVideoUrl = lecture.bunny_video_url;
+    // Video priority: Bunny storage > external YouTube/Vimeo URL
+    // الكود الجديد:
+    const videoFileUrl = lecture.video_file;
     const embedUrl = getEmbedUrl(lecture.video_url);
-    const hasVideo = bunnyVideoUrl || embedUrl;
+    const hasVideo = videoFileUrl || embedUrl;
 
     return (
         <div>
@@ -108,18 +109,18 @@ export default function LectureDetail() {
                     {/* Video Player */}
                     {hasVideo && (
                         <div className="glass-card p-0 overflow-hidden">
-                            <div className="aspect-video bg-black">
-                                {bunnyVideoUrl ? (
-                                    /* Bunny Stream embed player */
-                                    <iframe
-                                        src={bunnyVideoUrl ? bunnyVideoUrl.replace('iframe.mediadelivery.net', 'player.mediadelivery.net') : ''}
-
-                                        className="w-full h-full"
-                                        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                                        allowFullScreen
-                                        title={lecture.title_ar || lecture.title}
-                                        style={{ border: 'none' }}
-                                    />
+                            <div className="aspect-video bg-black flex items-center justify-center">
+                                {videoFileUrl ? (
+                                    /* مشغل الفيديو العادي الذي سيعمل عبر Cloudflare و Bunny Storage */
+                                    <video
+                                        src={videoFileUrl}
+                                        className="w-full h-full object-contain"
+                                        controls
+                                        controlsList="nodownload"
+                                        preload="metadata"
+                                    >
+                                        متصفحك لا يدعم تشغيل الفيديو.
+                                    </video>
                                 ) : embedUrl && (
                                     /* YouTube / Vimeo */
                                     <iframe
@@ -223,7 +224,7 @@ export default function LectureDetail() {
                                 </a>
                             )}
 
-                            {/* Bunny Stream video link (if embedded above, show as sidebar info) */}
+                            {/* Bunny Stream video link (if embedded above, show as sidebar info)
                             {lecture.bunny_video_id && (
                                 <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
                                     <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
@@ -235,6 +236,9 @@ export default function LectureDetail() {
                                     </div>
                                 </div>
                             )}
+                            
+                            */}
+
 
                             {/* External YouTube/Vimeo */}
                             {lecture.video_url && (

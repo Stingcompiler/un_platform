@@ -521,16 +521,16 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
                         </h3>
                         <div className="grid sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">ملف فيديو (اختياري - يُرفع إلى Bunny Stream)</label>
+                                <label className="block text-sm font-medium mb-2">ملف فيديو (MP4)</label>
                                 <input
                                     type="file"
                                     accept="video/*"
                                     className="input-field"
                                     onChange={(e) => setVideoFile(e.target.files[0])}
                                 />
-                                {lecture?.bunny_video_url && (
+                                {lecture?.video_file && (
                                     <p className="text-xs text-green-400 mt-1">
-                                        ✓ يوجد فيديو مرفوع على Bunny Stream
+                                        ✓ يوجد فيديو مرفوع مسبقاً لهذه المحاضرة
                                     </p>
                                 )}
                             </div>

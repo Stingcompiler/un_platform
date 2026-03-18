@@ -114,9 +114,8 @@ class LectureSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='course.name_ar', read_only=True)
     created_by_name = serializers.CharField(source='created_by.full_name_ar', read_only=True)
 
-    # Write-only field: accepts a video file; the view uploads it to Bunny Stream 
-    # and stores the resulting video_id/url on the model.
-    video_file = serializers.FileField(write_only=True, required=False, allow_null=True)
+    # ❌ قمنا بحذف السطر الخاص بـ video_file (write_only=True) 
+    # لأن ModelSerializer سيتعرف عليه تلقائياً كحقل ملف عادي يقرأ ويكتب
 
     class Meta:
         model = Lecture
@@ -125,16 +124,15 @@ class LectureSerializer(serializers.ModelSerializer):
             'lecture_type', 'order',
             # File attachment (PDF/docs)
             'file',
-            # Bunny Stream video (read-only output)
-            'bunny_video_id', 'bunny_video_url',
-            # Write-only video upload field
+            # 🚀 حقل الفيديو الجديد (سيعيد الرابط السحري المحمي تلقائياً للواجهة الأمامية)
             'video_file',
             # External/legacy URL fields
             'video_url', 'reference_url',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at', 'bunny_video_id', 'bunny_video_url']
-
+        # ❌ قمنا بحذف bunny_video_id و bunny_video_url من هنا
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+        
 
 class AssignmentSerializer(serializers.ModelSerializer):
     """Serializer for Assignment"""
