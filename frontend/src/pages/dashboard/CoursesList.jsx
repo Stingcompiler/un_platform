@@ -55,13 +55,7 @@ export default function CoursesList() {
     const fetchDepartments = async () => {
         try {
             const res = await api.get('/academic/departments/');
-            let depts = res.data.results || res.data;
-
-            // If department manager or supervisor, only show their managed department
-            if (user?.role === 'department_manager' || user?.role === 'supervisor') {
-                depts = depts.filter(d => d.department_manager === user.id);
-            }
-
+            const depts = res.data.results || res.data;
             setDepartments(depts);
         } catch (error) {
             console.error('Error fetching departments:', error);

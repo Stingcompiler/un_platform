@@ -97,9 +97,13 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        # Supervisor can only see their department
-        if user.is_authenticated and user.role == 'supervisor':
-            queryset = queryset.filter(supervisor=user)
+        if user.is_authenticated:
+            # Department manager can only see their own department
+            if user.role == 'department_manager':
+                queryset = queryset.filter(department_manager=user)
+            # Supervisor can only see their department
+            elif user.role == 'supervisor':
+                queryset = queryset.filter(supervisor=user)
         return queryset
     
     def perform_update(self, serializer):
@@ -146,13 +150,24 @@ class CourseViewSet(viewsets.ModelViewSet):
         if year:
             queryset = queryset.filter(academic_year=year)
         
-        # Supervisor can only see their department's courses
-        if user.role == 'supervisor':
+        # Department manager can only see their department's courses
+        if user.role == 'department_manager':
             dept = get_user_department(user)
             if dept:
                 queryset = queryset.filter(department=dept)
             else:
                 queryset = queryset.none()
+        # Supervisor can only see their department's courses
+        elif user.role == 'supervisor':
+            dept = get_user_department(user)
+            if dept:
+                queryset = queryset.filter(department=dept)
+            else:
+                queryset = queryset.none()
+        # Teachers and TAs can only see courses they are assigned to
+        elif user.role in ['teacher', 'ta']:
+            assigned_course_ids = CourseInstructor.objects.filter(user=user).values_list('course_id', flat=True)
+            queryset = queryset.filter(id__in=assigned_course_ids)
         # Students can only see courses for their department and year
         elif user.role == 'student' and user.university_student:
             queryset = queryset.filter(
@@ -450,13 +465,19 @@ class DashboardStatsView(APIView):
                 'unread_messages': ContactMessage.objects.filter(is_read=False).count(),
             }
         elif user.role in ['department_manager', 'supervisor']:
-            # Department manager stats
-            stats = {
-                'courses': Course.objects.filter(is_deleted=False).count(),
-                'instructors': CourseInstructor.objects.values('user').distinct().count(),
-                'assignments': Assignment.objects.count(),
-                'pending_submissions': Submission.objects.filter(grade__isnull=True).count(),
-            }
+            # Department manager / supervisor stats — scoped to their department
+            dept = get_user_department(user)
+            if dept:
+                dept_courses = Course.objects.filter(is_deleted=False, department=dept)
+                dept_course_ids = dept_courses.values_list('id', flat=True)
+                stats = {
+                    'courses': dept_courses.count(),
+                    'instructors': CourseInstructor.objects.filter(course_id__in=dept_course_ids).values('user').distinct().count(),
+                    'assignments': Assignment.objects.filter(course_id__in=dept_course_ids).count(),
+                    'pending_submissions': Submission.objects.filter(assignment__course_id__in=dept_course_ids, grade__isnull=True).count(),
+                }
+            else:
+                stats = {'courses': 0, 'instructors': 0, 'assignments': 0, 'pending_submissions': 0}
         elif user.role in ['teacher', 'ta']:
             # Teacher/TA stats
             my_courses = CourseInstructor.objects.filter(user=user).values_list('course_id', flat=True)
