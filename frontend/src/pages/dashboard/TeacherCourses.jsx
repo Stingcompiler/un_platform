@@ -181,6 +181,7 @@ export default function TeacherCourses() {
                             {activeTab === 'lectures' && (
                                 <div>
                                     <div className="flex justify-end mb-4">
+
                                         <button
                                             onClick={() => {
                                                 setEditingItem(null);
@@ -191,6 +192,7 @@ export default function TeacherCourses() {
                                             <Plus className="w-5 h-5" />
                                             إضافة محاضرة
                                         </button>
+
                                     </div>
 
                                     {lectures.length > 0 ? (
@@ -424,13 +426,21 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
             if (videoFile) submitData.append('video_file', videoFile);
 
             if (lecture) {
-                await api.patch(`/academic/lectures/${lecture.id}/`, submitData, {
+                const response = await api.patch(`/academic/lectures/${lecture.id}/`, submitData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
+
+                if (response.status === 200 || response.status === 201) {
+                    alert('تم تعديل المحاضرة بنجاح');
+                }
             } else {
-                await api.post('/academic/lectures/', submitData, {
+                const response = await api.post('/academic/lectures/', submitData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
+
+                if (response.status === 201 || response.status === 200) {
+                    alert('تم إضافة المحاضرة بنجاح');
+                }
             }
             onSave();
         } catch (error) {
