@@ -111,10 +111,10 @@ class Lecture(models.Model):
         related_name='lectures',
         verbose_name='المادة'
     )
-    title = models.CharField(max_length=200, verbose_name='العنوان')
+    title = models.CharField(max_length=200, verbose_name='العنوان',null=True,blank=True)
     title_ar = models.CharField(max_length=200, blank=True, verbose_name='العنوان بالعربية')
-    content = models.TextField(verbose_name='المحتوى')
-    lecture_type = models.CharField(max_length=10, choices=TYPE_CHOICES, verbose_name='النوع')
+    content = models.TextField(verbose_name='المحتوى',null=True,blank=True)
+    lecture_type = models.CharField(max_length=10, choices=TYPE_CHOICES, verbose_name='النوع',null=True,blank=True)
     order = models.PositiveIntegerField(default=0, verbose_name='الترتيب')
     
     # File attachments (PDFs, PPTs)

@@ -362,15 +362,25 @@ class UniversityStudentViewSet(viewsets.ModelViewSet):
         # Build department lookup cache (by name and name_ar)
         dept_cache = {}
         for dept in Department.objects.filter(is_deleted=False):
-            dept_cache[dept.name.lower()] = dept.id
+            if dept.name:
+                dept_cache[dept.name.strip().lower()] = dept.id
             if dept.name_ar:
-                dept_cache[dept.name_ar.lower()] = dept.id
+                dept_cache[dept.name_ar.strip().lower()] = dept.id
         
+        # Helper to find column by multiple possible names
+        def get_val(row, *keys):
+            for k in keys:
+                if k in row and row[k] is not None:
+                    return row[k]
+            return ''
+
         try:
             if filename.endswith('.csv'):
                 # Handle CSV file
-                content = file.read().decode('utf-8')
+                content = file.read().decode('utf-8-sig') # use utf-8-sig to handle BOM
                 reader = csv.DictReader(io.StringIO(content))
+                # Clean headers
+                reader.fieldnames = [str(f).strip().lower() for f in reader.fieldnames if f]
                 rows = list(reader)
             elif filename.endswith(('.xlsx', '.xls')):
                 # Handle Excel file
@@ -381,11 +391,11 @@ class UniversityStudentViewSet(viewsets.ModelViewSet):
                         'error': 'مكتبة openpyxl غير مثبتة. يرجى استخدام ملف CSV بدلاً من ذلك.'
                     }, status=status.HTTP_400_BAD_REQUEST)
                 
-                workbook = openpyxl.load_workbook(file)
+                workbook = openpyxl.load_workbook(file, data_only=True)
                 sheet = workbook.active
                 
-                # Get headers from first row
-                headers = [cell.value for cell in sheet[1] if cell.value]
+                # Get and clean headers from first row
+                headers = [str(cell.value).strip().lower() if cell.value else f"col_{i}" for i, cell in enumerate(sheet[1])]
                 rows = []
                 
                 for row in sheet.iter_rows(min_row=2, values_only=True):
@@ -399,15 +409,17 @@ class UniversityStudentViewSet(viewsets.ModelViewSet):
             
             for row in rows:
                 try:
-                    uni_num = str(row.get('university_number', '')).strip()
-                    if not uni_num:
+                    uni_num = str(get_val(row, 'university_number', 'الرقم الجامعي', 'رقم الطالب', 'id')).strip()
+                    if not uni_num or uni_num == 'none':
                         continue
                     
-                    # Get department - could be ID or name
-                    dept_value = row.get('department_id') or row.get('department') or ''
+                    full_name = str(get_val(row, 'full_name', 'الاسم الكامل', 'الاسم', 'name')).strip()
+                    
+                    # Get department
+                    dept_value = get_val(row, 'department_id', 'department', 'القسم', 'تخصص', 'التخصص')
                     dept_id = None
                     
-                    if dept_value:
+                    if dept_value and str(dept_value).strip() != 'none':
                         # Try as integer ID first
                         try:
                             dept_id = int(dept_value)
@@ -415,18 +427,51 @@ class UniversityStudentViewSet(viewsets.ModelViewSet):
                             # It's a string name, look up in cache
                             dept_name = str(dept_value).strip().lower()
                             dept_id = dept_cache.get(dept_name)
+                            
+                            if not dept_id:
+                                # Fallback: Advanced Arabic Normalization & Fuzzy matching
+                                def norm_ar(text):
+                                    t = text.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا')
+                                    t = t.replace('ة', 'ه').replace('ي', 'ى')
+                                    t = t.replace('تقانة', 'تقنية') # Common alias
+                                    t = t.replace('بكلاريوس', '').replace('بكالوريوس', '').replace('الشرف', '')
+                                    t = t.replace('دبلوم', '').replace('ماجستير', '').replace('في', '').replace('قسم', '')
+                                    return t.strip()
+                                
+                                norm_excel = norm_ar(dept_name)
+                                
+                                for db_name, d_id in dept_cache.items():
+                                    norm_db = norm_ar(db_name)
+                                    # Direct substring match after normalization
+                                    if norm_db and (norm_db in norm_excel or norm_excel in norm_db):
+                                        dept_id = d_id
+                                        break
+                                        
+                                    # Word-level intersection
+                                    excel_words = set(norm_excel.split())
+                                    db_words = set(norm_db.split())
+                                    if db_words and len(excel_words.intersection(db_words)) >= min(len(db_words), 2):
+                                        dept_id = d_id
+                                        break
+                            
                             if not dept_id:
                                 errors.append(f"Row {uni_num}: Department '{dept_value}' not found")
                                 continue
                     
-                    year = row.get('year', 1)
+                    year_val = get_val(row, 'year', 'السنة', 'السنة الدراسية')
+                    year = 1
+                    if year_val and str(year_val).strip() != 'none':
+                        try:
+                            year = int(float(str(year_val).strip()))
+                        except ValueError:
+                            year = 1
                     
                     obj, was_created = UniversityStudent.objects.update_or_create(
                         university_number=uni_num,
                         defaults={
-                            'full_name': str(row.get('full_name', '')).strip(),
+                            'full_name': full_name,
                             'department_id': dept_id,
-                            'year': int(year) if year else 1,
+                            'year': year,
                         }
                     )
                     if was_created:

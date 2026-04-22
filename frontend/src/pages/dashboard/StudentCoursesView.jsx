@@ -356,6 +356,13 @@ export default function StudentCoursesView() {
                                                         </div>
                                                     </div>
                                                     <div className="flex flex-col gap-2">
+                                                        <Link
+                                                            to={`/dashboard/exercise/${assignment.id}`}
+                                                            className="btn-primary px-3 py-2 text-sm justify-center"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                            التفاصيل
+                                                        </Link>
                                                         {submission ? (
                                                             <div className="text-center p-3 bg-white/5 rounded-lg">
                                                                 {submission.grade !== null ? (

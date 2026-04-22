@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import {
     LayoutDashboard, BookOpen, Users, FileText,
-    Calendar, Settings, GraduationCap, ClipboardList,
+    Calendar, GraduationCap, ClipboardList,
     Award, MessageSquare, LogOut, Home, Menu, X, User, Activity
 } from 'lucide-react';
 import { useState } from 'react';
@@ -24,6 +24,8 @@ import StudentResults from './StudentResults';
 import ResultsPublish from './ResultsPublish';
 import ProfilePage from './ProfilePage';
 import LectureDetail from './LectureDetail';
+import LecturesPage from './LecturesPage';
+import ExerciseDetail from './ExerciseDetail';
 import OperationsLog from './OperationsLog';
 
 export default function Dashboard() {
@@ -60,6 +62,7 @@ export default function Dashboard() {
                 return [
                     ...baseItems,
                     { path: '/dashboard/courses', icon: BookOpen, label: 'المواد' },
+                    { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
                     { path: '/dashboard/operations', icon: Activity, label: 'سجل العمليات' },
@@ -69,6 +72,7 @@ export default function Dashboard() {
                 return [
                     ...baseItems,
                     { path: '/dashboard/courses', icon: BookOpen, label: 'المواد' },
+                    { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
                     { path: '/dashboard/my-courses', icon: BookOpen, label: 'موادي' },
@@ -78,6 +82,7 @@ export default function Dashboard() {
                 return [
                     ...baseItems,
                     { path: '/dashboard/my-courses', icon: BookOpen, label: 'موادي' },
+                    { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
                     { path: '/dashboard/grading', icon: ClipboardList, label: 'التصحيح' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'نشر النتائج' },
                 ];
@@ -85,6 +90,7 @@ export default function Dashboard() {
                 return [
                     ...baseItems,
                     { path: '/dashboard/my-courses', icon: BookOpen, label: 'موادي' },
+                    { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
                     { path: '/dashboard/results', icon: Award, label: 'النتائج' },
                 ];
             default:
@@ -196,6 +202,22 @@ export default function Dashboard() {
                             </Link>
                         ))}
                         <div className="border-t border-white/10 pt-4 mt-4">
+                            <Link 
+                                to="/dashboard/profile" 
+                                onClick={() => setMobileMenuOpen(false)} 
+                                className="flex items-center gap-3 px-4 py-3 mb-2 rounded-xl bg-[var(--color-accent)]/5 hover:bg-[var(--color-accent)]/10 transition-colors border border-[var(--color-accent)]/10"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center text-[var(--color-accent)] shrink-0">
+                                    <User className="w-5 h-5" />
+                                </div>
+                                <div className="flex-1 text-right">
+                                    <p className="font-medium text-sm text-white">
+                                        {user?.role === 'student' ? (user?.full_name_ar || user?.username) : user?.username}
+                                    </p>
+                                    <p className="text-xs text-[var(--color-accent)]">{getRoleLabel()}</p>
+                                </div>
+                            </Link>
+
                             <Link to="/" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 text-[var(--color-text-muted)]">
                                 <Home className="w-5 h-5" />
                                 <span>الموقع الرئيسي</span>
@@ -236,6 +258,8 @@ export default function Dashboard() {
                         {/* Common Routes */}
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="lecture/:id" element={<LectureDetail />} />
+                        <Route path="lectures" element={<LecturesPage />} />
+                        <Route path="exercise/:id" element={<ExerciseDetail />} />
                         <Route path="*" element={<DashboardHome />} />
                     </Routes>
                 </div>

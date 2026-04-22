@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Plus, Edit, Trash2, X, Save, Video, FileText, Eye, Users, Download, User, Clock } from 'lucide-react';
@@ -294,6 +294,13 @@ export default function TeacherCourses() {
                                                             </div>
                                                         </div>
                                                         <div className="flex gap-2">
+                                                            <Link
+                                                                to={`/dashboard/exercise/${assignment.id}`}
+                                                                className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-accent)]"
+                                                                title="عرض التفاصيل"
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                            </Link>
                                                             <button
                                                                 onClick={() => viewSubmissions(assignment)}
                                                                 className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-primary-light)]"
@@ -395,6 +402,67 @@ export default function TeacherCourses() {
     );
 }
 
+// ─── Feedback Modals ──────────────────────────────────────────────────────────
+
+function SuccessModal({ title, message, onClose }) {
+    return (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
+            <div className="glass-card p-8 w-full max-w-md text-center">
+                <div className="w-20 h-20 rounded-full bg-green-500/20 border-2 border-green-500/40 flex items-center justify-center mx-auto mb-5">
+                    <svg className="w-10 h-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
+                <h3 className="text-xl font-bold text-green-400 mb-2">{title}</h3>
+                <p className="text-[var(--color-text-muted)] text-sm mb-6">{message}</p>
+                <button onClick={onClose} className="btn-accent w-full justify-center">
+                    <Save className="w-4 h-4" />
+                    حسناً، إغلاق
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ErrorModal({ title, reason, onClose, onRetry }) {
+    return (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
+            <div className="glass-card p-8 w-full max-w-md text-center">
+                <div className="w-20 h-20 rounded-full bg-red-500/20 border-2 border-red-500/40 flex items-center justify-center mx-auto mb-5">
+                    <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </div>
+                <h3 className="text-xl font-bold text-red-400 mb-2">{title}</h3>
+                {reason && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-4 text-right">
+                        <p className="text-xs text-[var(--color-text-muted)] mb-1">سبب الخطأ:</p>
+                        <p className="text-sm text-red-300">{reason}</p>
+                    </div>
+                )}
+                <p className="text-[var(--color-text-muted)] text-sm mb-6">
+                    يمكنك المحاولة مجدداً أو استخدام رابط YouTube بدلاً من رفع الملف مباشرة.
+                </p>
+                <div className="flex gap-3">
+                    {onRetry && (
+                        <button onClick={onRetry} className="btn-accent flex-1 justify-center">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            إعادة المحاولة
+                        </button>
+                    )}
+                    <button onClick={onClose} className="btn-primary flex-1 justify-center">
+                        إغلاق
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── LectureModal ─────────────────────────────────────────────────────────────
+
 function LectureModal({ course, lecture, isTA, onClose, onSave }) {
     const [formData, setFormData] = useState({
         title: lecture?.title || '',
@@ -409,202 +477,426 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
     const [videoFile, setVideoFile] = useState(null);
     const [loading, setLoading] = useState(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    // Upload tracking
+    const [uploadProgress, setUploadProgress] = useState(0);        // 0-100
+    const [uploadPhase, setUploadPhase] = useState('idle');          // idle | uploading | processing
+    const [elapsedSecs, setElapsedSecs] = useState(0);
+    const [showSlowWarning, setShowSlowWarning] = useState(false);   // >3 min toast
+
+    // Feedback modals
+    const [successModal, setSuccessModal] = useState(null);          // { title, message } | null
+    const [errorModal, setErrorModal] = useState(null);              // { title, reason } | null
+
+    // Refs for timers and abort
+    const timerRef = React.useRef(null);
+    const slowRef = React.useRef(null);
+    const abortRef = React.useRef(null);
+
+    const fileSizeMB = videoFile ? (videoFile.size / 1024 / 1024).toFixed(1) : 0;
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+    const startTimers = () => {
+        setElapsedSecs(0);
+        setShowSlowWarning(false);
+
+        // Elapsed counter (ticks every second)
+        timerRef.current = setInterval(() => {
+            setElapsedSecs(s => s + 1);
+        }, 1000);
+
+        // Slow-network warning after 3 minutes = 180 s
+        slowRef.current = setTimeout(() => {
+            setShowSlowWarning(true);
+        }, 180_000);
+    };
+
+    const clearTimers = () => {
+        clearInterval(timerRef.current);
+        clearTimeout(slowRef.current);
+    };
+
+    const fmtElapsed = (s) => {
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        return m > 0 ? `${m}د ${sec}ث` : `${sec}ث`;
+    };
+
+    const extractError = (error) => {
+        if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+            return 'تم إلغاء الرفع.';
+        }
+        if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+            return 'فشل الرفع بسبب انتهاء مهلة الاتصال. قد يحدث هذا عندما يكون الإنترنت بطيئًا أو يكون ملف الفيديو كبيرًا جدًا. يرجى المحاولة مرة أخرى وإبقاء الصفحة مفتوحة حتى ينتهي الرفع.';
+        }
+        if (!error.response) {
+            return 'تعذّر الوصول إلى الخادم. تحقق من اتصالك بالإنترنت وحاول مجدداً.';
+        }
+
+        // Catch server errors (e.g. 500 Internal Server Error) which often return raw HTML/Env vars
+        if (error.response.status >= 500) {
+            return 'حدث خطأ في الخادم أثناء معالجة طلبك. يرجى المحاولة لاحقاً أو التواصل مع الدعم الفني.';
+        }
+
+        const d = error.response.data;
+        
+        // Prevent rendering raw HTML pages as error strings
+        if (typeof d === 'string' && (d.trim().startsWith('<') || d.length > 150)) {
+            return `خطأ ${error.response.status} — حدث خطأ غير متوقع من الخادم.`;
+        }
+
+        return (
+            d?.detail ||
+            d?.video_file?.[0] ||
+            d?.file?.[0] ||
+            d?.title_ar?.[0] ||
+            d?.non_field_errors?.[0] ||
+            (typeof d === 'string' ? d : null) ||
+            `خطأ ${error.response.status} — حدث خطأ غير متوقع من الخادم.`
+        );
+    };
+
+    // ── submit ────────────────────────────────────────────────────────────────
+    const doSubmit = async () => {
         setLoading(true);
+        setUploadProgress(0);
+        setUploadPhase(videoFile ? 'uploading' : 'uploading');
+        setShowSlowWarning(false);
+        setSuccessModal(null);
+        setErrorModal(null);
+
+        abortRef.current = new AbortController();
+        startTimers();
+
+        const submitData = new FormData();
+        submitData.append('course', course.id);
+        submitData.append('title', formData.title);
+        submitData.append('title_ar', formData.title_ar);
+        submitData.append('content', formData.content);
+        submitData.append('lecture_type', formData.lecture_type);
+        submitData.append('order', formData.order);
+        if (formData.video_url) submitData.append('video_url', formData.video_url);
+        if (formData.reference_url) submitData.append('reference_url', formData.reference_url);
+        if (file) submitData.append('file', file);
+        if (videoFile) submitData.append('video_file', videoFile);
+
+        const config = {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            signal: abortRef.current.signal,
+            onUploadProgress: (e) => {
+                if (!e.total) return;
+                const pct = Math.round((e.loaded * 100) / e.total);
+                setUploadProgress(pct);
+                if (pct >= 100) setUploadPhase('processing');
+            },
+        };
+
         try {
-            const submitData = new FormData();
-            submitData.append('course', course.id);
-            submitData.append('title', formData.title);
-            submitData.append('title_ar', formData.title_ar);
-            submitData.append('content', formData.content);
-            submitData.append('lecture_type', formData.lecture_type);
-            submitData.append('order', formData.order);
-            if (formData.video_url) submitData.append('video_url', formData.video_url);
-            if (formData.reference_url) submitData.append('reference_url', formData.reference_url);
-            if (file) submitData.append('file', file);
-            if (videoFile) submitData.append('video_file', videoFile);
-
             if (lecture) {
-                const response = await api.patch(`/academic/lectures/${lecture.id}/`, submitData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-
-                if (response.status === 200 || response.status === 201) {
-                    alert('تم تعديل المحاضرة بنجاح');
-                }
+                await api.patch(`/academic/lectures/${lecture.id}/`, submitData, config);
             } else {
-                const response = await api.post('/academic/lectures/', submitData, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
-
-                if (response.status === 201 || response.status === 200) {
-                    alert('تم إضافة المحاضرة بنجاح');
-                }
+                await api.post('/academic/lectures/', submitData, config);
             }
-            onSave();
-        } catch (error) {
-            console.error('Error saving lecture:', error);
-            alert(error.response?.data?.detail || error.response?.data?.[0] || 'حدث خطأ أثناء حفظ المحاضرة');
-        } finally {
+
+            clearTimers();
             setLoading(false);
+            setUploadPhase('idle');
+
+            setSuccessModal({
+                title: lecture ? 'تم تحديث المحاضرة بنجاح ✓' : 'تمت إضافة المحاضرة بنجاح ✓',
+                message: lecture
+                    ? `تم تحديث "${formData.title_ar}" وحفظ التغييرات.`
+                    : `تمت إضافة المحاضرة "${formData.title_ar}" إلى ${course.name_ar}.`,
+            });
+        } catch (error) {
+            clearTimers();
+            setLoading(false);
+            setUploadPhase('idle');
+            setUploadProgress(0);
+
+            if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') return; // user aborted
+
+            console.error('Upload error:', error);
+            setErrorModal({
+                title: 'فشل رفع المحاضرة',
+                reason: extractError(error),
+            });
         }
     };
 
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        doSubmit();
+    };
+
+    const handleAbort = () => {
+        abortRef.current?.abort();
+        clearTimers();
+        setLoading(false);
+        setUploadPhase('idle');
+        setUploadProgress(0);
+        setShowSlowWarning(false);
+    };
+
+    const handleSuccessClose = () => {
+        setSuccessModal(null);
+        onSave();
+    };
+
+    const handleErrorClose = () => setErrorModal(null);
+    const handleRetry = () => { setErrorModal(null); doSubmit(); };
+
+    // ─────────────────────────────────────────────────────────────────────────
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="glass-card p-6 w-full max-w-2xl my-4 sm:my-8 max-h-[calc(100dvh-2rem)] sm:max-h-none overflow-y-auto">
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-bold">{lecture ? 'تعديل المحاضرة' : 'إضافة محاضرة جديدة'}</h2>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10">
-                        <X className="w-5 h-5" />
-                    </button>
+        <>
+            <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">
+                <div className="glass-card p-6 w-full max-w-2xl my-4 sm:my-8 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
+
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-5">
+                        <h2 className="text-xl font-bold">
+                            {lecture ? 'تعديل المحاضرة' : 'إضافة محاضرة جديدة'}
+                        </h2>
+                        <button
+                            onClick={loading ? handleAbort : onClose}
+                            className={`p-2 rounded-lg transition-colors ${loading
+                                ? 'hover:bg-red-500/20 text-red-400'
+                                : 'hover:bg-white/10 text-[var(--color-text-muted)]'}`}
+                            title={loading ? 'إلغاء الرفع' : 'إغلاق'}
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* ── Slow-network toast ── */}
+                    {showSlowWarning && loading && (
+                        <div className="mb-4 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-3">
+                            <span className="text-yellow-400 text-lg mt-0.5">⏳</span>
+                            <div className="flex-1">
+                                <p className="text-yellow-400 font-semibold text-sm">الاتصال بطيء</p>
+                                <p className="text-yellow-300/80 text-xs mt-0.5">
+                                    مضى على الرفع أكثر من 3 دقائق. للفيديوهات الكبيرة يُنصح باستخدام رابط YouTube بدلاً من الرفع المباشر.
+                                </p>
+                            </div>
+                            <button onClick={() => setShowSlowWarning(false)} className="text-yellow-400 hover:text-yellow-300 shrink-0">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
+
+
+
+                    {/* ── Form ── */}
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Titles */}
+                        <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">العنوان (عربي)</label>
+                                <input
+                                    type="text" className="input-field"
+                                    value={formData.title_ar}
+                                    onChange={(e) => setFormData({ ...formData, title_ar: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">Title (English)</label>
+                                <input
+                                    type="text" className="input-field"
+                                    value={formData.title}
+                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Type + Order */}
+                        <div className="grid sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-2">نوع المحاضرة</label>
+                                <select className="input-field" value={formData.lecture_type}
+                                    onChange={(e) => setFormData({ ...formData, lecture_type: e.target.value })}>
+                                    {!isTA && <option value="theory">نظري</option>}
+                                    <option value="lab">عملي</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2">الترتيب</label>
+                                <input type="number" min="0" className="input-field"
+                                    value={formData.order}
+                                    onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div>
+                            <label className="block text-sm font-medium mb-2">المحتوى</label>
+                            <textarea rows={4} className="input-field resize-none"
+                                placeholder="اكتب محتوى المحاضرة هنا..."
+                                value={formData.content}
+                                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                            />
+                        </div>
+
+                        {/* Video Section */}
+                        <div className="border-t border-white/10 pt-4">
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                <Video className="w-5 h-5" /> الفيديو
+                            </h3>
+
+                            {/* Info note */}
+                            <div className="mb-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-300 flex items-start gap-2">
+                                <span className="shrink-0 mt-0.5">ℹ️</span>
+                                <span>
+                                    رفع الفيديو مباشرةً قد يستغرق وقتاً طويلاً بحسب حجم الملف وسرعة اتصالك.
+                                    <strong className="text-blue-200"> لا تغلق النافذة</strong> أثناء الرفع.
+                                    للفيديوهات الكبيرة يُفضّل استخدام <strong className="text-blue-200">رابط YouTube/Vimeo</strong> في الحقل المجاور.
+                                </span>
+                            </div>
+
+                            <div className="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">ملف فيديو (MP4)</label>
+                                    <input type="file" accept="video/*" className="input-field"
+                                        onChange={(e) => setVideoFile(e.target.files[0])} />
+                                    {videoFile ? (
+                                        <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                                            {videoFile.name} ({fileSizeMB} MB)
+                                        </p>
+                                    ) : lecture?.video_file ? (
+                                        <p className="text-xs text-green-400 mt-1">✓ يوجد فيديو مرفوع مسبقاً</p>
+                                    ) : null}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">رابط فيديو خارجي (YouTube/Vimeo)</label>
+                                    <input type="url" className="input-field"
+                                        placeholder="https://youtube.com/watch?v=..."
+                                        value={formData.video_url}
+                                        onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Files Section */}
+                        <div className="border-t border-white/10 pt-4">
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                <FileText className="w-5 h-5" /> الملفات والمراجع
+                            </h3>
+                            <div className="grid sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">ملف مرفق (PDF, PPT, etc.)</label>
+                                    <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,.zip"
+                                        className="input-field"
+                                        onChange={(e) => setFile(e.target.files[0])} />
+                                    {lecture?.file && (
+                                        <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                                            ملف حالي: {lecture.file.split('/').pop()}
+                                        </p>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">رابط المراجع (اختياري)</label>
+                                    <input type="url" className="input-field"
+                                        placeholder="https://example.com/references"
+                                        value={formData.reference_url}
+                                        onChange={(e) => setFormData({ ...formData, reference_url: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ── Upload Progress Panel (Bottom) ── */}
+                        {loading && (
+                            <div className="mb-4 p-5 rounded-xl bg-[var(--color-primary)]/10 border-2 border-[var(--color-accent)]/30 shadow-lg shadow-[var(--color-accent)]/10">
+                                {/* Phase label + elapsed */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                                    <div className="flex items-center gap-2">
+                                        {uploadPhase === 'processing' ? (
+                                            <p className="text-sm font-bold text-[var(--color-accent)]">جاري المعالجة على الخادم...</p>
+                                        ) : videoFile ? (
+                                            <p className="text-sm font-bold text-[var(--color-accent)]">جاري رفع الفيديو...</p>
+                                        ) : (
+                                            <p className="text-sm font-bold text-[var(--color-accent)]">جاري الحفظ...</p>
+                                        )}
+                                    </div>
+                                    {videoFile && (
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-semibold px-2 py-1 bg-[var(--color-accent)]/20 rounded text-[var(--color-accent)]">
+                                                {uploadProgress}%
+                                            </span>
+                                            <span className="text-xs text-[var(--color-text-muted)]">
+                                                {fmtElapsed(elapsedSecs)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden mb-3 relative">
+                                    <div
+                                        className="h-full rounded-full transition-all duration-500 relative flex items-center justify-end px-2"
+                                        style={{
+                                            width: uploadPhase === 'processing' ? '100%' : `${uploadProgress}%`,
+                                            background: 'linear-gradient(90deg, var(--color-accent-dark), var(--color-accent), var(--color-accent-light))',
+                                            backgroundSize: '200% 100%',
+                                            animation: uploadPhase === 'processing'
+                                                ? 'shimmer 1.5s linear infinite'
+                                                : 'none',
+                                        }}
+                                    >
+                                        {/* Subtle internal text on the bar if desired */}
+                                    </div>
+                                </div>
+
+                                {/* File meta */}
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-medium text-[var(--color-text-muted)]">
+                                        {videoFile
+                                            ? `${videoFile.name} • ${fileSizeMB} MB`
+                                            : 'لا تغلق هذه النافذة أثناء الحفظ'}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex gap-3 pt-2 border-t border-white/10 mt-4">
+                            <button type="submit" disabled={loading} className="btn-accent flex-1 justify-center">
+                                {loading
+                                    ? <>{videoFile ? 'جاري الرفع...' : 'جاري الحفظ...'}</>
+                                    : <><Save className="w-5 h-5" />{lecture ? 'تحديث' : 'إضافة'}</>
+                                }
+                            </button>
+                            <button type="button" onClick={loading ? handleAbort : onClose}
+                                className={`flex-1 justify-center btn-primary ${loading ? 'border border-red-500/30 text-red-400' : ''}`}>
+                                {loading ? 'إلغاء الرفع' : 'إلغاء'}
+                            </button>
+                        </div>
+                    </form>
                 </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Title Fields */}
-                    <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-2">العنوان (عربي) *</label>
-                            <input
-                                type="text"
-                                required
-                                className="input-field"
-                                value={formData.title_ar}
-                                onChange={(e) => setFormData({ ...formData, title_ar: e.target.value })}
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-2">Title (English)</label>
-                            <input
-                                type="text"
-                                className="input-field"
-                                value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Type and Order */}
-                    <div className="grid sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium mb-2">نوع المحاضرة</label>
-                            <select
-                                className="input-field"
-                                value={formData.lecture_type}
-                                onChange={(e) => setFormData({ ...formData, lecture_type: e.target.value })}
-                            >
-                                {!isTA && <option value="theory">نظري</option>}
-                                <option value="lab">عملي</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-2">الترتيب</label>
-                            <input
-                                type="number"
-                                min="0"
-                                className="input-field"
-                                value={formData.order}
-                                onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <div>
-                        <label className="block text-sm font-medium mb-2">المحتوى *</label>
-                        <textarea
-                            rows={4}
-                            required
-                            className="input-field resize-none"
-                            placeholder="اكتب محتوى المحاضرة هنا..."
-                            value={formData.content}
-                            onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                        ></textarea>
-                    </div>
-
-                    {/* Video Section */}
-                    <div className="border-t border-white/10 pt-4 mt-4">
-                        <h3 className="font-semibold mb-3 flex items-center gap-2">
-                            <Video className="w-5 h-5" />
-                            الفيديو
-                        </h3>
-                        <div className="grid sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-2">ملف فيديو (MP4)</label>
-                                <input
-                                    type="file"
-                                    accept="video/*"
-                                    className="input-field"
-                                    onChange={(e) => setVideoFile(e.target.files[0])}
-                                />
-                                {lecture?.video_file && (
-                                    <p className="text-xs text-green-400 mt-1">
-                                        ✓ يوجد فيديو مرفوع مسبقاً لهذه المحاضرة
-                                    </p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-2">رابط فيديو خارجي (YouTube/Vimeo)</label>
-                                <input
-                                    type="url"
-                                    className="input-field"
-                                    placeholder="https://youtube.com/watch?v=..."
-                                    value={formData.video_url}
-                                    onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Files Section */}
-                    <div className="border-t border-white/10 pt-4 mt-4">
-                        <h3 className="font-semibold mb-3 flex items-center gap-2">
-                            <FileText className="w-5 h-5" />
-                            الملفات والمراجع
-                        </h3>
-                        <div className="grid sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-2">ملف مرفق (PDF, PPT, etc.)</label>
-                                <input
-                                    type="file"
-                                    accept=".pdf,.ppt,.pptx,.doc,.docx,.zip"
-                                    className="input-field"
-                                    onChange={(e) => setFile(e.target.files[0])}
-                                />
-                                {lecture?.file && (
-                                    <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                                        ملف حالي: {lecture.file.split('/').pop()}
-                                    </p>
-                                )}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-2">رابط المراجع (اختياري)</label>
-                                <input
-                                    type="url"
-                                    className="input-field"
-                                    placeholder="https://example.com/references"
-                                    value={formData.reference_url}
-                                    onChange={(e) => setFormData({ ...formData, reference_url: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 pt-4">
-                        <button type="submit" disabled={loading} className="btn-accent flex-1 justify-center">
-                            {loading ? <span className="spinner w-5 h-5 border-2"></span> : <Save className="w-5 h-5" />}
-                            {lecture ? 'تحديث' : 'إضافة'}
-                        </button>
-                        <button type="button" onClick={onClose} className="btn-primary flex-1 justify-center">
-                            إلغاء
-                        </button>
-                    </div>
-                </form>
             </div>
-        </div>
+
+            {/* Success Modal */}
+            {successModal && (
+                <SuccessModal
+                    title={successModal.title}
+                    message={successModal.message}
+                    onClose={handleSuccessClose}
+                />
+            )}
+
+            {/* Error Modal */}
+            {errorModal && (
+                <ErrorModal
+                    title={errorModal.title}
+                    reason={errorModal.reason}
+                    onClose={handleErrorClose}
+                    onRetry={handleRetry}
+                />
+            )}
+        </>
     );
 }
+
 
 function AssignmentModal({ course, assignment, isTA, onClose, onSave }) {
     const [formData, setFormData] = useState({

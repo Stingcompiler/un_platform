@@ -70,7 +70,7 @@ export default function Footer() {
                             <li className="flex items-center gap-3">
                                 <Phone className="w-5 h-5 text-[var(--color-accent)] flex-shrink-0" />
                                 <a href="tel:+249123456789" className="text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
-                                    +249902929451
+                                    +24990
                                 </a>
                             </li>
                             <li className="flex items-center gap-3">
@@ -89,7 +89,7 @@ export default function Footer() {
                         © {new Date().getFullYear()} كلية الامارات للعلوم والتكنولوجيا. {t('footer.rights')}
                     </p>
                     <p className='text-[var(--color-text-muted)] flex items-center gap-2 justify-center text-center  mt-2'>
-                        <a href="https://musabdev.pythonanywhere.com/"
+                        <a href="https://stingdev.pro/"
                             className='text-[var(--color-accent)]  hover:text-[var(--color-primary)] transition-colors'
                             target="_blank" rel="noopener noreferrer">stingdev</a>
                         <span className='flex items-center gap-2'>
