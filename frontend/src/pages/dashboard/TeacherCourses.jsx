@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Plus, Edit, Trash2, X, Save, Video, FileText, Eye, Users, Download, User, Clock } from 'lucide-react';
+import { BookOpen, Plus, Edit, Trash2, X, Save, Video, FileText, Eye, Users, Download, User, Clock, ChevronDown } from 'lucide-react';
 import api from '../../services/api';
 
 export default function TeacherCourses() {
@@ -117,8 +117,8 @@ export default function TeacherCourses() {
 
             {courses.length > 0 ? (
                 <div className="grid lg:grid-cols-[280px,1fr] gap-6">
-                    {/* Course List */}
-                    <div className="glass-card p-4">
+                    {/* Course List — Desktop Sidebar */}
+                    <div className="hidden lg:block glass-card p-4">
                         <h3 className="font-semibold mb-4">المواد</h3>
                         <div className="space-y-2">
                             {courses.map((course) => (
@@ -137,18 +137,40 @@ export default function TeacherCourses() {
                         </div>
                     </div>
 
+                    {/* Course Selector — Mobile Dropdown */}
+                    <div className="lg:hidden glass-card p-4">
+                        <label className="block text-sm font-medium mb-2 text-[var(--color-text-muted)]">اختر المادة</label>
+                        <div className="relative">
+                            <select
+                                className="input-field w-full appearance-none pr-4 pl-10"
+                                value={selectedCourse?.id || ''}
+                                onChange={(e) => {
+                                    const c = courses.find(c => String(c.id) === e.target.value);
+                                    if (c) setSelectedCourse(c);
+                                }}
+                            >
+                                {courses.map((course) => (
+                                    <option key={course.id} value={course.id}>
+                                        {course.name_ar} — {course.code}
+                                    </option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-text-muted)] pointer-events-none" />
+                        </div>
+                    </div>
+
                     {/* Course Content */}
                     {selectedCourse && (
                         <div>
                             {/* Course Header */}
-                            <div className="glass-card p-6 mb-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)] flex items-center justify-center">
-                                        <BookOpen className="w-7 h-7 text-[var(--color-accent)]" />
+                            <div className="glass-card p-4 sm:p-6 mb-6">
+                                <div className="flex items-center gap-3 sm:gap-4">
+                                    <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)] flex items-center justify-center shrink-0">
+                                        <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 text-[var(--color-accent)]" />
                                     </div>
-                                    <div>
-                                        <h2 className="text-2xl font-bold">{selectedCourse.name_ar}</h2>
-                                        <p className="text-[var(--color-text-muted)]">
+                                    <div className="min-w-0">
+                                        <h2 className="text-xl sm:text-2xl font-bold truncate">{selectedCourse.name_ar}</h2>
+                                        <p className="text-sm text-[var(--color-text-muted)]">
                                             {selectedCourse.code} • {selectedCourse.credit_hours} ساعات
                                         </p>
                                     </div>
@@ -159,7 +181,7 @@ export default function TeacherCourses() {
                             <div className="flex gap-2 mb-6">
                                 <button
                                     onClick={() => setActiveTab('lectures')}
-                                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'lectures'
+                                    className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-medium transition-colors text-sm sm:text-base ${activeTab === 'lectures'
                                         ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
                                         : 'bg-white/5 hover:bg-white/10'
                                         }`}
@@ -168,7 +190,7 @@ export default function TeacherCourses() {
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('assignments')}
-                                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'assignments'
+                                    className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-medium transition-colors text-sm sm:text-base ${activeTab === 'assignments'
                                         ? 'bg-[var(--color-accent)] text-[var(--color-bg)]'
                                         : 'bg-white/5 hover:bg-white/10'
                                         }`}
@@ -196,28 +218,29 @@ export default function TeacherCourses() {
                                     </div>
 
                                     {lectures.length > 0 ? (
-                                        <div className="space-y-4">
+                                        <div className="space-y-3 sm:space-y-4">
                                             {lectures.map((lecture) => (
-                                                <div key={lecture.id} className="glass-card p-5 hover:bg-white/5 transition-colors">
-                                                    <div className="flex items-start justify-between">
-                                                        <Link to={`/dashboard/lecture/${lecture.id}`} className="flex items-start gap-4 flex-1">
-                                                            <div className="w-12 h-12 rounded-lg bg-[var(--color-primary)]/20 flex items-center justify-center">
+                                                <div key={lecture.id} className="glass-card p-4 sm:p-5 hover:bg-white/5 transition-colors">
+                                                    {/* Desktop: horizontal layout */}
+                                                    <div className="hidden sm:flex items-start justify-between">
+                                                        <Link to={`/dashboard/lecture/${lecture.id}`} className="flex items-start gap-4 flex-1 min-w-0">
+                                                            <div className="w-12 h-12 rounded-lg bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
                                                                 <Video className="w-6 h-6 text-[var(--color-accent)]" />
                                                             </div>
-                                                            <div>
+                                                            <div className="min-w-0">
                                                                 <span className={`text-xs px-2 py-0.5 rounded ${lecture.lecture_type === 'theory'
                                                                     ? 'bg-blue-500/20 text-blue-400'
                                                                     : 'bg-green-500/20 text-green-400'
                                                                     }`}>
                                                                     {lecture.lecture_type === 'theory' ? 'نظري' : 'عملي'}
                                                                 </span>
-                                                                <h3 className="text-lg font-semibold mt-1">{lecture.title_ar || lecture.title}</h3>
+                                                                <h3 className="text-lg font-semibold mt-1 truncate">{lecture.title_ar || lecture.title}</h3>
                                                                 <p className="text-sm text-[var(--color-text-muted)] line-clamp-2">
                                                                     {lecture.content?.substring(0, 100)}...
                                                                 </p>
                                                             </div>
                                                         </Link>
-                                                        <div className="flex gap-2">
+                                                        <div className="flex gap-2 shrink-0 mr-3">
                                                             <Link
                                                                 to={`/dashboard/lecture/${lecture.id}`}
                                                                 className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-accent)]"
@@ -243,14 +266,62 @@ export default function TeacherCourses() {
                                                             )}
                                                         </div>
                                                     </div>
+
+                                                    {/* Mobile: vertical layout */}
+                                                    <div className="sm:hidden">
+                                                        <Link to={`/dashboard/lecture/${lecture.id}`} className="flex items-start gap-3">
+                                                            <div className="w-10 h-10 rounded-lg bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
+                                                                <Video className="w-5 h-5 text-[var(--color-accent)]" />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className={`text-xs px-2 py-0.5 rounded ${lecture.lecture_type === 'theory'
+                                                                        ? 'bg-blue-500/20 text-blue-400'
+                                                                        : 'bg-green-500/20 text-green-400'
+                                                                        }`}>
+                                                                        {lecture.lecture_type === 'theory' ? 'نظري' : 'عملي'}
+                                                                    </span>
+                                                                </div>
+                                                                <h3 className="font-semibold text-base leading-tight line-clamp-2">{lecture.title_ar || lecture.title}</h3>
+                                                                <p className="text-xs text-[var(--color-text-muted)] line-clamp-1 mt-1">
+                                                                    {lecture.content?.substring(0, 60)}...
+                                                                </p>
+                                                            </div>
+                                                        </Link>
+                                                        <div className="flex gap-1 mt-3 pt-3 border-t border-white/5">
+                                                            <Link
+                                                                to={`/dashboard/lecture/${lecture.id}`}
+                                                                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs font-medium"
+                                                            >
+                                                                <Eye className="w-3.5 h-3.5" /> عرض
+                                                            </Link>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingItem(lecture);
+                                                                    setShowLectureModal(true);
+                                                                }}
+                                                                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-white/5 text-[var(--color-text-muted)] text-xs font-medium"
+                                                            >
+                                                                <Edit className="w-3.5 h-3.5" /> تعديل
+                                                            </button>
+                                                            {canDelete && (
+                                                                <button
+                                                                    onClick={() => handleDeleteLecture(lecture.id)}
+                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-red-500/10 text-[var(--color-error)] text-xs font-medium"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" /> حذف
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <div className="glass-card p-12 text-center">
-                                            <Video className="w-16 h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
-                                            <h3 className="text-xl font-semibold mb-2">لا توجد محاضرات</h3>
-                                            <p className="text-[var(--color-text-muted)]">لم يتم إضافة أي محاضرات لهذه المادة</p>
+                                        <div className="glass-card p-8 sm:p-12 text-center">
+                                            <Video className="w-12 h-12 sm:w-16 sm:h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
+                                            <h3 className="text-lg sm:text-xl font-semibold mb-2">لا توجد محاضرات</h3>
+                                            <p className="text-sm text-[var(--color-text-muted)]">لم يتم إضافة أي محاضرات لهذه المادة</p>
                                         </div>
                                     )}
                                 </div>
@@ -272,69 +343,67 @@ export default function TeacherCourses() {
                                     </div>
 
                                     {assignments.length > 0 ? (
-                                        <div className="space-y-4">
+                                        <div className="space-y-3 sm:space-y-4">
                                             {assignments.map((assignment) => (
-                                                <div key={assignment.id} className="glass-card p-5">
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex items-start gap-4">
-                                                            <div className="w-12 h-12 rounded-lg bg-[var(--color-accent)]/20 flex items-center justify-center">
+                                                <div key={assignment.id} className="glass-card p-4 sm:p-5">
+                                                    {/* Desktop layout */}
+                                                    <div className="hidden sm:flex items-start justify-between">
+                                                        <div className="flex items-start gap-4 min-w-0">
+                                                            <div className="w-12 h-12 rounded-lg bg-[var(--color-accent)]/20 flex items-center justify-center shrink-0">
                                                                 <FileText className="w-6 h-6 text-[var(--color-accent)]" />
                                                             </div>
-                                                            <div>
+                                                            <div className="min-w-0">
                                                                 <span className={`text-xs px-2 py-0.5 rounded ${assignment.assignment_type === 'theory'
                                                                     ? 'bg-blue-500/20 text-blue-400'
                                                                     : 'bg-green-500/20 text-green-400'
                                                                     }`}>
                                                                     {assignment.assignment_type === 'theory' ? 'نظري' : 'عملي'}
                                                                 </span>
-                                                                <h3 className="text-lg font-semibold mt-1">{assignment.title_ar}</h3>
+                                                                <h3 className="text-lg font-semibold mt-1 truncate">{assignment.title_ar}</h3>
                                                                 <p className="text-sm text-[var(--color-text-muted)]">
                                                                     الدرجة: {assignment.max_grade} | التسليم: {new Date(assignment.due_date).toLocaleDateString('ar-SD')}
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <div className="flex gap-2">
-                                                            <Link
-                                                                to={`/dashboard/exercise/${assignment.id}`}
-                                                                className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-accent)]"
-                                                                title="عرض التفاصيل"
-                                                            >
-                                                                <Eye className="w-4 h-4" />
-                                                            </Link>
-                                                            <button
-                                                                onClick={() => viewSubmissions(assignment)}
-                                                                className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-primary-light)]"
-                                                                title="عرض التسليمات"
-                                                            >
-                                                                <Users className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setEditingItem(assignment);
-                                                                    setShowAssignmentModal(true);
-                                                                }}
-                                                                className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-text-muted)]"
-                                                            >
-                                                                <Edit className="w-4 h-4" />
-                                                            </button>
-                                                            {canDelete && (
-                                                                <button
-                                                                    onClick={() => handleDeleteAssignment(assignment.id)}
-                                                                    className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-error)]"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            )}
+                                                        <div className="flex gap-2 shrink-0 mr-3">
+                                                            <Link to={`/dashboard/exercise/${assignment.id}`} className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-accent)]" title="عرض التفاصيل"><Eye className="w-4 h-4" /></Link>
+                                                            <button onClick={() => viewSubmissions(assignment)} className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-primary-light)]" title="عرض التسليمات"><Users className="w-4 h-4" /></button>
+                                                            <button onClick={() => { setEditingItem(assignment); setShowAssignmentModal(true); }} className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-text-muted)]"><Edit className="w-4 h-4" /></button>
+                                                            {canDelete && (<button onClick={() => handleDeleteAssignment(assignment.id)} className="p-2 rounded-lg hover:bg-white/10 text-[var(--color-error)]"><Trash2 className="w-4 h-4" /></button>)}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Mobile layout */}
+                                                    <div className="sm:hidden">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="w-10 h-10 rounded-lg bg-[var(--color-accent)]/20 flex items-center justify-center shrink-0">
+                                                                <FileText className="w-5 h-5 text-[var(--color-accent)]" />
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <span className={`text-xs px-2 py-0.5 rounded ${assignment.assignment_type === 'theory' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
+                                                                    {assignment.assignment_type === 'theory' ? 'نظري' : 'عملي'}
+                                                                </span>
+                                                                <h3 className="font-semibold text-base mt-1 line-clamp-2">{assignment.title_ar}</h3>
+                                                                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                                                                    الدرجة: {assignment.max_grade} | التسليم: {new Date(assignment.due_date).toLocaleDateString('ar-SD')}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-1 mt-3 pt-3 border-t border-white/5">
+                                                            <Link to={`/dashboard/exercise/${assignment.id}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs font-medium"><Eye className="w-3.5 h-3.5" /> عرض</Link>
+                                                            <button onClick={() => viewSubmissions(assignment)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-medium"><Users className="w-3.5 h-3.5" /> التسليمات</button>
+                                                            <button onClick={() => { setEditingItem(assignment); setShowAssignmentModal(true); }} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-white/5 text-[var(--color-text-muted)] text-xs font-medium"><Edit className="w-3.5 h-3.5" /> تعديل</button>
+                                                            {canDelete && (<button onClick={() => handleDeleteAssignment(assignment.id)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-red-500/10 text-[var(--color-error)] text-xs font-medium"><Trash2 className="w-3.5 h-3.5" /> حذف</button>)}
                                                         </div>
                                                     </div>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <div className="glass-card p-12 text-center">
-                                            <FileText className="w-16 h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
-                                            <h3 className="text-xl font-semibold mb-2">لا توجد واجبات</h3>
-                                            <p className="text-[var(--color-text-muted)]">لم يتم إضافة أي واجبات لهذه المادة</p>
+                                        <div className="glass-card p-8 sm:p-12 text-center">
+                                            <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
+                                            <h3 className="text-lg sm:text-xl font-semibold mb-2">لا توجد واجبات</h3>
+                                            <p className="text-sm text-[var(--color-text-muted)]">لم يتم إضافة أي واجبات لهذه المادة</p>
                                         </div>
                                     )}
                                 </div>
@@ -648,12 +717,12 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
     // ─────────────────────────────────────────────────────────────────────────
     return (
         <>
-            <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-4 overflow-y-auto">
-                <div className="glass-card p-6 w-full max-w-2xl my-4 sm:my-8 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 2rem)' }}>
+            <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+                <div className="glass-card p-4 sm:p-6 w-full max-w-2xl my-2 sm:my-8 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 1rem)' }}>
 
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-5">
-                        <h2 className="text-xl font-bold">
+                    <div className="flex items-center justify-between mb-4 sm:mb-5">
+                        <h2 className="text-lg sm:text-xl font-bold">
                             {lecture ? 'تعديل المحاضرة' : 'إضافة محاضرة جديدة'}
                         </h2>
                         <button
@@ -743,12 +812,12 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
                             </h3>
 
                             {/* Info note */}
-                            <div className="mb-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-300 flex items-start gap-2">
+                            <div className="mb-3 p-2.5 sm:p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs sm:text-sm text-blue-300 flex items-start gap-2">
                                 <span className="shrink-0 mt-0.5">ℹ️</span>
                                 <span>
-                                    رفع الفيديو مباشرةً قد يستغرق وقتاً طويلاً بحسب حجم الملف وسرعة اتصالك.
+                                    رفع الفيديو مباشرةً قد يستغرق وقتاً طويلاً.
                                     <strong className="text-blue-200"> لا تغلق النافذة</strong> أثناء الرفع.
-                                    للفيديوهات الكبيرة يُفضّل استخدام <strong className="text-blue-200">رابط YouTube/Vimeo</strong> في الحقل المجاور.
+                                    للفيديوهات الكبيرة يُفضّل استخدام <strong className="text-blue-200">رابط YouTube/Vimeo</strong>.
                                 </span>
                             </div>
 
@@ -806,21 +875,22 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
 
                         {/* ── Upload Progress Panel (Bottom) ── */}
                         {loading && (
-                            <div className="mb-4 p-5 rounded-xl bg-[var(--color-primary)]/10 border-2 border-[var(--color-accent)]/30 shadow-lg shadow-[var(--color-accent)]/10">
+                            <div className="mb-4 p-3 sm:p-5 rounded-xl bg-[var(--color-primary)]/10 border-2 border-[var(--color-accent)]/30 shadow-lg shadow-[var(--color-accent)]/10">
                                 {/* Phase label + elapsed */}
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                                <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                                     <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
                                         {uploadPhase === 'processing' ? (
-                                            <p className="text-sm font-bold text-[var(--color-accent)]">جاري المعالجة على الخادم...</p>
+                                            <p className="text-xs sm:text-sm font-bold text-[var(--color-accent)]">جاري المعالجة على الخادم...</p>
                                         ) : videoFile ? (
-                                            <p className="text-sm font-bold text-[var(--color-accent)]">جاري رفع الفيديو...</p>
+                                            <p className="text-xs sm:text-sm font-bold text-[var(--color-accent)]">جاري رفع الفيديو...</p>
                                         ) : (
-                                            <p className="text-sm font-bold text-[var(--color-accent)]">جاري الحفظ...</p>
+                                            <p className="text-xs sm:text-sm font-bold text-[var(--color-accent)]">جاري الحفظ...</p>
                                         )}
                                     </div>
                                     {videoFile && (
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xs font-semibold px-2 py-1 bg-[var(--color-accent)]/20 rounded text-[var(--color-accent)]">
+                                        <div className="flex items-center gap-2 sm:gap-3">
+                                            <span className="text-sm sm:text-base font-bold text-[var(--color-accent)]">
                                                 {uploadProgress}%
                                             </span>
                                             <span className="text-xs text-[var(--color-text-muted)]">
@@ -830,12 +900,12 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
                                     )}
                                 </div>
 
-                                {/* Progress bar */}
-                                <div className="w-full bg-white/5 rounded-full h-4 overflow-hidden mb-3 relative">
+                                {/* Progress bar — taller on mobile for visibility */}
+                                <div className="w-full bg-white/5 rounded-full h-5 sm:h-4 overflow-hidden mb-3 relative">
                                     <div
-                                        className="h-full rounded-full transition-all duration-500 relative flex items-center justify-end px-2"
+                                        className="h-full rounded-full transition-all duration-500 relative flex items-center justify-center"
                                         style={{
-                                            width: uploadPhase === 'processing' ? '100%' : `${uploadProgress}%`,
+                                            width: uploadPhase === 'processing' ? '100%' : `${Math.max(uploadProgress, 2)}%`,
                                             background: 'linear-gradient(90deg, var(--color-accent-dark), var(--color-accent), var(--color-accent-light))',
                                             backgroundSize: '200% 100%',
                                             animation: uploadPhase === 'processing'
@@ -843,31 +913,31 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
                                                 : 'none',
                                         }}
                                     >
-                                        {/* Subtle internal text on the bar if desired */}
+                                        {uploadProgress > 15 && (
+                                            <span className="text-[10px] sm:text-xs font-bold text-[var(--color-bg)] drop-shadow">{uploadProgress}%</span>
+                                        )}
                                     </div>
                                 </div>
 
                                 {/* File meta */}
-                                <div className="flex items-center justify-between">
-                                    <p className="text-xs font-medium text-[var(--color-text-muted)]">
-                                        {videoFile
-                                            ? `${videoFile.name} • ${fileSizeMB} MB`
-                                            : 'لا تغلق هذه النافذة أثناء الحفظ'}
-                                    </p>
-                                </div>
+                                <p className="text-[10px] sm:text-xs font-medium text-[var(--color-text-muted)] truncate">
+                                    {videoFile
+                                        ? `${videoFile.name} • ${fileSizeMB} MB`
+                                        : 'لا تغلق هذه النافذة أثناء الحفظ'}
+                                </p>
                             </div>
                         )}
 
                         {/* Actions */}
-                        <div className="flex gap-3 pt-2 border-t border-white/10 mt-4">
-                            <button type="submit" disabled={loading} className="btn-accent flex-1 justify-center">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2 border-t border-white/10 mt-4">
+                            <button type="submit" disabled={loading} className="btn-accent flex-1 justify-center text-sm sm:text-base py-3 sm:py-2.5">
                                 {loading
                                     ? <>{videoFile ? 'جاري الرفع...' : 'جاري الحفظ...'}</>
                                     : <><Save className="w-5 h-5" />{lecture ? 'تحديث' : 'إضافة'}</>
                                 }
                             </button>
                             <button type="button" onClick={loading ? handleAbort : onClose}
-                                className={`flex-1 justify-center btn-primary ${loading ? 'border border-red-500/30 text-red-400' : ''}`}>
+                                className={`flex-1 justify-center btn-primary text-sm sm:text-base py-3 sm:py-2.5 ${loading ? 'border border-red-500/30 text-red-400' : ''}`}>
                                 {loading ? 'إلغاء الرفع' : 'إلغاء'}
                             </button>
                         </div>

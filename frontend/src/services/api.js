@@ -1,6 +1,6 @@
 import axios from 'axios';
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+    baseURL: 'http://localhost:8000/api',
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
@@ -23,20 +23,20 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        // Don't retry for auth endpoints or if already retried
-        const isAuthEndpoint = originalRequest.url?.includes('/auth/me') ||
-            originalRequest.url?.includes('/auth/refresh');
+        // Only skip refresh for the refresh endpoint itself (prevents infinite loops)
+        const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
 
-        // If 401 and not an auth endpoint and not already retrying
-        if (error.response?.status === 401 && !isAuthEndpoint && !originalRequest._retry) {
+        // If 401 and not the refresh endpoint and not already retrying
+        if (error.response?.status === 401 && !isRefreshEndpoint && !originalRequest._retry) {
             originalRequest._retry = true;
 
             try {
-                // Try to refresh the token
-                const refreshUrl = import.meta.env.VITE_API_BASE_URL
-                    ? `${import.meta.env.VITE_API_BASE_URL}/auth/refresh/`
-                    : '/api/auth/refresh/';
-                await axios.post(refreshUrl, {}, { withCredentials: true });
+                // Try to refresh the token using the same baseURL as the api instance
+                await axios.post(
+                    `${api.defaults.baseURL}/auth/refresh/`,
+                    {},
+                    { withCredentials: true }
+                );
                 // Retry the original request
                 return api(originalRequest);
             } catch (refreshError) {

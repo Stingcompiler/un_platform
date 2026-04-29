@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
     LayoutDashboard, BookOpen, Users, FileText,
     Calendar, GraduationCap, ClipboardList,
-    Award, MessageSquare, LogOut, Home, Menu, X, User, Activity
+    Award, MessageSquare, LogOut, Home, Menu, X, User, Activity, BarChart2
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -27,6 +27,7 @@ import LectureDetail from './LectureDetail';
 import LecturesPage from './LecturesPage';
 import ExerciseDetail from './ExerciseDetail';
 import OperationsLog from './OperationsLog';
+import ReportsPage from './ReportsPage';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
@@ -64,6 +65,7 @@ export default function Dashboard() {
                     { path: '/dashboard/courses', icon: BookOpen, label: 'المواد' },
                     { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
+                    { path: '/dashboard/reports', icon: BarChart2, label: 'التقارير' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
                     { path: '/dashboard/operations', icon: Activity, label: 'سجل العمليات' },
                     { path: '/dashboard/my-courses', icon: BookOpen, label: 'موادي' },
@@ -74,6 +76,7 @@ export default function Dashboard() {
                     { path: '/dashboard/courses', icon: BookOpen, label: 'المواد' },
                     { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
+                    { path: '/dashboard/reports', icon: BarChart2, label: 'التقارير' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
                     { path: '/dashboard/my-courses', icon: BookOpen, label: 'موادي' },
                 ];
@@ -249,6 +252,7 @@ export default function Dashboard() {
                         <Route path="courses" element={<CoursesList />} />
                         <Route path="instructors" element={<CoursesList />} />
                         <Route path="operations" element={<OperationsLog />} />
+                        <Route path="reports" element={<ReportsPage />} />
                         {/* Teacher/TA Routes */}
                         <Route path="my-courses" element={user?.role === 'student' ? <StudentCoursesView /> : <TeacherCourses />} />
                         <Route path="grading" element={<GradingPage />} />

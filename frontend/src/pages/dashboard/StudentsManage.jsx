@@ -5,7 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function StudentsManage() {
     const { user } = useAuth();
-    const isSupervisor = user?.role === 'supervisor';
+    const isAdmin = user?.role === 'system_manager';
+    const isManager = ['department_manager', 'supervisor'].includes(user?.role);
     const canDelete = ['system_manager', 'department_manager'].includes(user?.role);
     const [students, setStudents] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -219,22 +220,33 @@ export default function StudentsManage() {
 
             {/* Filters */}
             <div className="glass-card p-4 mb-6">
-                <div className="grid sm:grid-cols-3 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium mb-1">القسم</label>
-                        <select
-                            value={filters.department}
-                            onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                            className="input-field"
-                        >
-                            <option value="">جميع الأقسام</option>
-                            {departments.map((dept) => (
-                                <option key={dept.id} value={dept.id}>
-                                    {dept.name_ar || dept.name_en}
-                                </option>
-                            ))}
-                        </select>
+                {/* Dept context banner for managers */}
+                {isManager && user?.department && (
+                    <div className="mb-4 px-4 py-2 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 text-sm flex items-center gap-2">
+                        <span className="text-[var(--color-accent)] font-medium">القسم:</span>
+                        <span>{user.department.name_ar}</span>
+                        <span className="text-[var(--color-text-muted)] text-xs mr-auto">البيانات مقيدة بقسمك فقط</span>
                     </div>
+                )}
+                <div className={`grid gap-4 ${isAdmin ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                    {/* Department filter — system_manager only */}
+                    {isAdmin && (
+                        <div>
+                            <label className="block text-sm font-medium mb-1">القسم</label>
+                            <select
+                                value={filters.department}
+                                onChange={(e) => setFilters({ ...filters, department: e.target.value })}
+                                className="input-field"
+                            >
+                                <option value="">جميع الأقسام</option>
+                                {departments.map((dept) => (
+                                    <option key={dept.id} value={dept.id}>
+                                        {dept.name_ar || dept.name_en}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                     <div>
                         <label className="block text-sm font-medium mb-1">السنة الدراسية</label>
                         <select

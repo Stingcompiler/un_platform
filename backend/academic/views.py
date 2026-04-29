@@ -513,3 +513,232 @@ class DashboardStatsView(APIView):
         
         return Response(stats)
 
+
+class LectureStatsView(APIView):
+    """Return lecture statistics scoped by user role"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        from django.db.models import Count
+        from django.db.models.functions import TruncDate
+        from django.utils import timezone
+        import datetime
+
+        # Determine scope
+        if user.role == 'system_manager' or user.is_superuser:
+            lectures_qs = Lecture.objects.all()
+            courses_qs = Course.objects.filter(is_deleted=False)
+        elif user.role in ['department_manager', 'supervisor']:
+            dept = get_user_department(user)
+            if dept:
+                courses_qs = Course.objects.filter(is_deleted=False, department=dept)
+                lectures_qs = Lecture.objects.filter(course__department=dept)
+            else:
+                return Response({'error': 'لا يوجد قسم مرتبط'}, status=403)
+        elif user.role in ['teacher', 'ta']:
+            assigned = CourseInstructor.objects.filter(user=user).values_list('course_id', flat=True)
+            courses_qs = Course.objects.filter(is_deleted=False, id__in=assigned)
+            lectures_qs = Lecture.objects.filter(course_id__in=assigned)
+        else:
+            return Response({'error': 'غير مصرح'}, status=403)
+
+        total_lectures = lectures_qs.count()
+        total_files = lectures_qs.exclude(file=None).exclude(file='').count()
+        total_videos = lectures_qs.filter(video_file__isnull=False).exclude(video_file='').count() + \
+                       lectures_qs.filter(video_url__isnull=False).exclude(video_url='').count()
+        courses_with_lectures = lectures_qs.values('course').distinct().count()
+        total_courses = courses_qs.count()
+
+        # Recent uploads (last 7 days)
+        seven_days_ago = timezone.now() - datetime.timedelta(days=7)
+        recent_uploads = lectures_qs.filter(created_at__gte=seven_days_ago).count()
+
+        # Upload trends by day (last 30 days)
+        thirty_days_ago = timezone.now() - datetime.timedelta(days=30)
+        trends = (
+            lectures_qs
+            .filter(created_at__gte=thirty_days_ago)
+            .annotate(date=TruncDate('created_at'))
+            .values('date')
+            .annotate(count=Count('id'))
+            .order_by('date')
+        )
+        upload_trends = [
+            {'date': str(t['date']), 'count': t['count']}
+            for t in trends
+        ]
+
+        # Last upload
+        last_lecture = lectures_qs.order_by('-created_at').first()
+        last_upload = str(last_lecture.created_at.date()) if last_lecture else None
+
+        # Theory vs Lab
+        theory_count = lectures_qs.filter(lecture_type='theory').count()
+        lab_count = lectures_qs.filter(lecture_type='lab').count()
+
+        return Response({
+            'total_lectures': total_lectures,
+            'total_files': total_files,
+            'total_videos': total_videos,
+            'courses_with_lectures': courses_with_lectures,
+            'total_courses': total_courses,
+            'courses_without_lectures': total_courses - courses_with_lectures,
+            'recent_uploads': recent_uploads,
+            'last_upload': last_upload,
+            'theory_count': theory_count,
+            'lab_count': lab_count,
+            'upload_trends': upload_trends,
+        })
+
+
+class DepartmentReportView(APIView):
+    """Full department analytics for Reports page — dept manager & supervisor only"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        from django.db.models import Count, Q
+        from django.db.models.functions import TruncDate
+        from django.utils import timezone
+        import datetime
+        from accounts.models import UniversityStudent
+
+        if user.role not in ['department_manager', 'supervisor', 'system_manager']:
+            return Response({'error': 'غير مصرح'}, status=403)
+
+        # Determine department scope
+        if user.role == 'system_manager' or user.is_superuser:
+            dept_id = request.query_params.get('department')
+            if dept_id:
+                try:
+                    dept = Department.objects.get(id=dept_id, is_deleted=False)
+                except Department.DoesNotExist:
+                    return Response({'error': 'القسم غير موجود'}, status=404)
+            else:
+                # Return all-dept summary for system manager
+                dept = None
+        else:
+            dept = get_user_department(user)
+            if not dept:
+                return Response({'error': 'لا يوجد قسم مرتبط'}, status=403)
+
+        if dept:
+            courses_qs = Course.objects.filter(is_deleted=False, department=dept)
+            lectures_qs = Lecture.objects.filter(course__department=dept)
+            students_qs = UniversityStudent.objects.filter(department=dept)
+        else:
+            courses_qs = Course.objects.filter(is_deleted=False)
+            lectures_qs = Lecture.objects.all()
+            students_qs = UniversityStudent.objects.all()
+
+        # --- Course Statistics ---
+        total_courses = courses_qs.count()
+        course_ids = courses_qs.values_list('id', flat=True)
+
+        # --- Lecture Statistics ---
+        total_lectures = lectures_qs.count()
+        total_files = lectures_qs.exclude(file=None).exclude(file='').count()
+        thirty_days_ago = timezone.now() - datetime.timedelta(days=30)
+        seven_days_ago = timezone.now() - datetime.timedelta(days=7)
+        recent_7d = lectures_qs.filter(created_at__gte=seven_days_ago).count()
+        recent_30d = lectures_qs.filter(created_at__gte=thirty_days_ago).count()
+
+        # Courses with / without lectures
+        courses_with_lec_ids = lectures_qs.values('course').distinct()
+        courses_with_lectures = courses_with_lec_ids.count()
+        courses_without_lectures = total_courses - courses_with_lectures
+
+        # Most and least active course
+        course_lecture_counts = (
+            courses_qs
+            .annotate(lec_count=Count('lectures'))
+            .order_by('-lec_count')
+        )
+        most_active = None
+        least_active = None
+        if course_lecture_counts.exists():
+            ma = course_lecture_counts.first()
+            most_active = {'name': ma.name_ar, 'code': ma.code, 'count': ma.lec_count}
+            la = course_lecture_counts.last()
+            least_active = {'name': la.name_ar, 'code': la.code, 'count': la.lec_count}
+
+        avg_per_course = round(total_lectures / total_courses, 1) if total_courses > 0 else 0
+
+        # Upload trends by day (last 30 days)
+        trends = (
+            lectures_qs
+            .filter(created_at__gte=thirty_days_ago)
+            .annotate(date=TruncDate('created_at'))
+            .values('date')
+            .annotate(count=Count('id'))
+            .order_by('date')
+        )
+        upload_trends = [{'date': str(t['date']), 'count': t['count']} for t in trends]
+
+        # --- Department / People Statistics ---
+        total_students = students_qs.count()
+        registered_students = students_qs.filter(is_registered=True).count()
+
+        # Supervisors & managers in this dept
+        if dept:
+            total_supervisors = Department.objects.filter(id=dept.id).values('supervisor').exclude(supervisor=None).count()
+            total_managers = 1 if dept.department_manager else 0
+        else:
+            total_supervisors = Department.objects.filter(is_deleted=False).exclude(supervisor=None).count()
+            total_managers = Department.objects.filter(is_deleted=False).exclude(department_manager=None).count()
+
+        # Instructors in dept
+        instructors_count = (
+            CourseInstructor.objects.filter(course_id__in=course_ids)
+            .values('user').distinct().count()
+        )
+
+        # --- Per-course detail table ---
+        course_details = []
+        for course in courses_qs.annotate(lec_count=Count('lectures')):
+            last_lec = Lecture.objects.filter(course=course).order_by('-created_at').first()
+            instr = CourseInstructor.objects.filter(course=course).select_related('user').first()
+            course_details.append({
+                'id': course.id,
+                'name': course.name_ar,
+                'code': course.code,
+                'year': course.academic_year,
+                'semester': course.semester,
+                'supervisor': instr.user.full_name_ar or instr.user.username if instr else '—',
+                'lecture_count': course.lec_count,
+                'last_upload': str(last_lec.created_at.date()) if last_lec else None,
+                'completion_pct': min(100, round((course.lec_count / 10) * 100)) if course.lec_count else 0,
+            })
+
+        # Last upload overall
+        last_lec_global = lectures_qs.order_by('-created_at').first()
+        last_upload = str(last_lec_global.created_at.date()) if last_lec_global else None
+
+        return Response({
+            'department': {'id': dept.id, 'name': dept.name_ar} if dept else None,
+            'course_stats': {
+                'total': total_courses,
+                'with_lectures': courses_with_lectures,
+                'without_lectures': courses_without_lectures,
+            },
+            'lecture_stats': {
+                'total': total_lectures,
+                'total_files': total_files,
+                'recent_7d': recent_7d,
+                'recent_30d': recent_30d,
+                'avg_per_course': avg_per_course,
+                'most_active': most_active,
+                'least_active': least_active,
+                'last_upload': last_upload,
+                'upload_trends': upload_trends,
+            },
+            'department_stats': {
+                'total_students': total_students,
+                'registered_students': registered_students,
+                'total_supervisors': total_supervisors,
+                'total_managers': total_managers,
+                'instructors': instructors_count,
+            },
+            'course_details': course_details,
+        })

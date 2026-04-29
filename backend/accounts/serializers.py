@@ -73,12 +73,29 @@ class UserProfileSerializer(serializers.ModelSerializer):
                             'university_number']
     
     def get_department(self, obj):
-        if obj.university_student and obj.university_student.department:
-            return {
-                'id': obj.university_student.department.id,
-                'name': obj.university_student.department.name,
-                'name_ar': obj.university_student.department.name_ar,
-            }
+        # For students: department via university_student
+        if obj.role == 'student':
+            if obj.university_student and obj.university_student.department:
+                return {
+                    'id': obj.university_student.department.id,
+                    'name': obj.university_student.department.name,
+                    'name_ar': obj.university_student.department.name_ar,
+                }
+            return None
+        # For department managers: via managed_department (OneToOne reverse)
+        if obj.role == 'department_manager':
+            dept = getattr(obj, 'managed_department', None)
+            if dept:
+                return {'id': dept.id, 'name': dept.name, 'name_ar': dept.name_ar}
+            return None
+        # For supervisors: first department where they are set as supervisor
+        if obj.role == 'supervisor':
+            from academic.models import Department
+            dept = Department.objects.filter(supervisor=obj, is_deleted=False).first()
+            if dept:
+                return {'id': dept.id, 'name': dept.name, 'name_ar': dept.name_ar}
+            return None
+        # For other staff roles (teacher, ta, system_manager): no specific department
         return None
     
     def get_year(self, obj):
