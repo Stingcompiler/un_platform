@@ -1,13 +1,22 @@
-import { useState, useEffect } from 'react';
-import { BookOpen, Plus, Edit, Trash2, Users, X, Save, UserPlus, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { BookOpen, Plus, Edit, Trash2, Users, X, Save, UserPlus, CheckCircle, AlertCircle, Search, Filter } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 
 export default function CoursesList() {
     const { user } = useAuth();
+    const isAdmin = user?.role === 'system_manager';
+    const isManager = ['department_manager', 'supervisor'].includes(user?.role);
+    const isProfessor = ['teacher', 'ta'].includes(user?.role);
     const [courses, setCourses] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [teachers, setTeachers] = useState([]);
+
+    // Subject filter state
+    const [filterDept, setFilterDept] = useState('');
+    const [filterLevel, setFilterLevel] = useState('');
+    const [filterSemester, setFilterSemester] = useState('');
+    const [filterSearch, setFilterSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [showInstructorModal, setShowInstructorModal] = useState(false);
@@ -220,6 +229,32 @@ export default function CoursesList() {
     const canManageCourses = user?.role === 'system_manager' || user?.role === 'department_manager' || user?.role === 'supervisor';
     const canDeleteCourses = user?.role === 'system_manager' || user?.role === 'department_manager';
 
+    // Client-side filtering
+    const filteredCourses = useMemo(() => {
+        let data = courses;
+        if (filterDept) {
+            data = data.filter(c => String(c.department) === filterDept);
+        }
+        if (filterLevel) {
+            data = data.filter(c => String(c.academic_year) === filterLevel);
+        }
+        if (filterSemester) {
+            data = data.filter(c => String(c.semester) === filterSemester);
+        }
+        if (filterSearch.trim()) {
+            const q = filterSearch.toLowerCase();
+            data = data.filter(c =>
+                (c.name_ar || '').toLowerCase().includes(q) ||
+                (c.name || '').toLowerCase().includes(q) ||
+                (c.code || '').toLowerCase().includes(q)
+            );
+        }
+        return data;
+    }, [courses, filterDept, filterLevel, filterSemester, filterSearch]);
+
+    const filterActiveCount = [filterDept, filterLevel, filterSemester, filterSearch].filter(Boolean).length;
+    const resetFilters = () => { setFilterDept(''); setFilterLevel(''); setFilterSemester(''); setFilterSearch(''); };
+
     if (loading) {
         return (
             <div className="flex justify-center py-20">
@@ -230,7 +265,7 @@ export default function CoursesList() {
 
     return (
         <div>
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold mb-2">إدارة المواد</h1>
                     <p className="text-[var(--color-text-muted)]">إضافة وتعديل المواد الدراسية</p>
@@ -243,7 +278,70 @@ export default function CoursesList() {
                 )}
             </div>
 
-            {courses.length > 0 ? (
+            {/* Dept context banner for managers */}
+            {isManager && user?.department && (
+                <div className="mb-4 px-4 py-2 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 text-sm flex items-center gap-2">
+                    <span className="text-[var(--color-accent)] font-medium">القسم:</span>
+                    <span>{user.department.name_ar}</span>
+                    <span className="text-[var(--color-text-muted)] text-xs mr-auto">البيانات مقيدة بقسمك فقط</span>
+                </div>
+            )}
+
+            {/* Role-Based Filters */}
+            <div className="glass-card p-5 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                    <span className="font-semibold flex items-center gap-2">
+                        <Filter className="w-4 h-4 text-[var(--color-accent)]" />
+                        الفلاتر
+                        {filterActiveCount > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-accent)] text-[var(--color-bg)] font-bold">{filterActiveCount}</span>
+                        )}
+                    </span>
+                    {filterActiveCount > 0 && (
+                        <button onClick={resetFilters} className="flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors">
+                            <X className="w-3 h-3" /> مسح الكل
+                        </button>
+                    )}
+                </div>
+
+                <div className={`grid gap-3 ${isAdmin ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+                    {/* Subject Name Search */}
+                    <div className="relative">
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+                        <input type="text" className="input-field pr-10" placeholder="ابحث باسم المادة..."
+                            value={filterSearch} onChange={e => setFilterSearch(e.target.value)} />
+                    </div>
+
+                    {/* Department filter — system_manager only */}
+                    {isAdmin && (
+                        <select className="input-field" value={filterDept} onChange={e => setFilterDept(e.target.value)}>
+                            <option value="">جميع الأقسام</option>
+                            {departments.map(d => <option key={d.id} value={d.id}>{d.name_ar}</option>)}
+                        </select>
+                    )}
+
+                    {/* Level (1-5) */}
+                    <select className="input-field" value={filterLevel} onChange={e => setFilterLevel(e.target.value)}>
+                        <option value="">جميع المستويات</option>
+                        {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>المستوى {y}</option>)}
+                    </select>
+
+                    {/* Semester (1-10) */}
+                    <select className="input-field" value={filterSemester} onChange={e => setFilterSemester(e.target.value)}>
+                        <option value="">جميع الفصول</option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(s => <option key={s} value={s}>الفصل {s}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            {/* Results summary */}
+            <div className="flex items-center justify-between mb-4">
+                <p className="text-sm text-[var(--color-text-muted)]">
+                    {filteredCourses.length === 0 ? 'لا توجد نتائج' : `${filteredCourses.length} مادة`}
+                </p>
+            </div>
+
+            {filteredCourses.length > 0 ? (
                 <div className="glass-card overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full">
@@ -259,7 +357,7 @@ export default function CoursesList() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {courses.map((course) => (
+                                {filteredCourses.map((course) => (
                                     <tr key={course.id} className="border-b border-white/5 hover:bg-white/5">
                                         <td className="p-4">
                                             <span className="px-3 py-1 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-sm">
@@ -336,8 +434,15 @@ export default function CoursesList() {
                 <div className="glass-card p-12 text-center">
                     <BookOpen className="w-16 h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
                     <h3 className="text-xl font-semibold mb-2">لا توجد مواد</h3>
-                    <p className="text-[var(--color-text-muted)] mb-6">لم يتم إضافة أي مواد بعد</p>
-                    {canManageCourses && (
+                    <p className="text-[var(--color-text-muted)] mb-6">
+                        {filterActiveCount > 0 ? 'لا توجد مواد تطابق الفلاتر المحددة' : 'لم يتم إضافة أي مواد بعد'}
+                    </p>
+                    {filterActiveCount > 0 ? (
+                        <button onClick={resetFilters} className="btn-accent">
+                            <X className="w-5 h-5" />
+                            مسح الفلاتر
+                        </button>
+                    ) : canManageCourses && (
                         <button onClick={() => openModal()} className="btn-accent">
                             <Plus className="w-5 h-5" />
                             إضافة أول مادة

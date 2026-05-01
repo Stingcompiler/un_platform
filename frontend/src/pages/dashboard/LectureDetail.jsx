@@ -80,36 +80,36 @@ export default function LectureDetail() {
     const hasVideo = videoFileUrl || embedUrl;
 
     return (
-        <div>
+        <div className="max-w-full overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-6">
                 <button
                     onClick={() => navigate(-1)}
-                    className="p-2 rounded-lg hover:bg-white/10"
+                    className="p-2 rounded-lg hover:bg-white/10 shrink-0"
                 >
                     <ArrowRight className="w-6 h-6" />
                 </button>
-                <div>
+                <div className="min-w-0">
                     <span className={`text-xs px-2 py-0.5 rounded ${lecture.lecture_type === 'theory'
                         ? 'bg-blue-500/20 text-blue-400'
                         : 'bg-green-500/20 text-green-400'
                         }`}>
                         {lecture.lecture_type === 'theory' ? 'نظري' : 'عملي'}
                     </span>
-                    <h1 className="text-2xl font-bold mt-1">{lecture.title_ar || lecture.title}</h1>
-                    <p className="text-[var(--color-text-muted)]">
+                    <h1 className="text-xl sm:text-2xl font-bold mt-1 break-words">{lecture.title_ar || lecture.title}</h1>
+                    <p className="text-[var(--color-text-muted)] text-sm sm:text-base truncate">
                         {lecture.course_name}
                     </p>
                 </div>
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Main Content */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="lg:col-span-2 space-y-4 sm:space-y-6 min-w-0">
                     {/* Video Player */}
                     {hasVideo && (
                         <div className="glass-card p-0 overflow-hidden">
-                            <div className="aspect-video bg-black flex items-center justify-center">
+                            <div className="aspect-video bg-black flex items-center justify-center w-full">
                                 {videoFileUrl ? (
                                     /* مشغل الفيديو العادي الذي سيعمل عبر Cloudflare و Bunny Storage */
                                     <video
@@ -146,8 +146,8 @@ export default function LectureDetail() {
                     )}
 
                     {/* Lecture Content */}
-                    <div className="glass-card p-6">
-                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <div className="glass-card p-4 sm:p-6">
+                        <h2 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
                             <BookOpen className="w-5 h-5 text-[var(--color-accent)]" />
                             محتوى المحاضرة
                         </h2>
@@ -160,9 +160,9 @@ export default function LectureDetail() {
                 </div>
 
                 {/* Sidebar */}
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                     {/* Info Card */}
-                    <div className="glass-card p-6">
+                    <div className="glass-card p-4 sm:p-6">
                         <h3 className="font-semibold mb-4">معلومات المحاضرة</h3>
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
@@ -200,7 +200,7 @@ export default function LectureDetail() {
                     </div>
 
                     {/* Downloads & Links */}
-                    <div className="glass-card p-6">
+                    <div className="glass-card p-4 sm:p-6">
                         <h3 className="font-semibold mb-4">الملفات والروابط</h3>
                         <div className="space-y-3">
                             {/* PDF / Attachment file */}

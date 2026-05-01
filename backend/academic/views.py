@@ -742,3 +742,302 @@ class DepartmentReportView(APIView):
             },
             'course_details': course_details,
         })
+
+
+class ProfessorsListView(APIView):
+    """List professors with their assigned subjects, scoped by user role"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        if user.role not in ['system_manager', 'department_manager', 'supervisor']:
+            return Response({'error': 'غير مصرح'}, status=403)
+
+        from django.db.models import Q
+
+        # Determine scope
+        if user.role == 'system_manager':
+            instructors_qs = CourseInstructor.objects.filter(
+                course__is_deleted=False
+            ).select_related('user', 'course', 'course__department')
+            # Optional department filter
+            dept_filter = request.query_params.get('department')
+            if dept_filter:
+                instructors_qs = instructors_qs.filter(course__department_id=dept_filter)
+        else:
+            dept = get_user_department(user)
+            if not dept:
+                return Response([])
+            instructors_qs = CourseInstructor.objects.filter(
+                course__department=dept,
+                course__is_deleted=False
+            ).select_related('user', 'course', 'course__department')
+
+        # Search by professor name
+        search = request.query_params.get('search', '').strip()
+        if search:
+            instructors_qs = instructors_qs.filter(
+                Q(user__full_name_ar__icontains=search) |
+                Q(user__username__icontains=search) |
+                Q(user__first_name__icontains=search) |
+                Q(user__last_name__icontains=search)
+            )
+
+        # Group by professor
+        professors_map = {}
+        for ci in instructors_qs:
+            uid = ci.user.id
+            if uid not in professors_map:
+                professors_map[uid] = {
+                    'id': uid,
+                    'name': ci.user.full_name_ar or ci.user.username,
+                    'assigned_subjects': [],
+                    'study_years': set(),
+                    'semesters': set(),
+                    'departments': set(),
+                    'department_name': '',
+                }
+            p = professors_map[uid]
+            subj_label = f"{ci.course.code} - {ci.course.name_ar}"
+            if subj_label not in p['assigned_subjects']:
+                p['assigned_subjects'].append(subj_label)
+            p['study_years'].add(ci.course.academic_year)
+            p['semesters'].add(ci.course.semester)
+            p['departments'].add(ci.course.department.name_ar)
+            p['department_name'] = ci.course.department.name_ar
+
+        # Convert sets to sorted lists for JSON
+        result = []
+        for prof in professors_map.values():
+            result.append({
+                'id': prof['id'],
+                'name': prof['name'],
+                'assigned_subjects': prof['assigned_subjects'],
+                'study_years': sorted(prof['study_years']),
+                'semesters': sorted(prof['semesters']),
+                'department_name': ', '.join(sorted(prof['departments'])),
+            })
+
+        result.sort(key=lambda x: x['name'])
+        return Response(result)
+
+
+class ComprehensiveReportView(APIView):
+    """Comprehensive analytics dashboard — system_manager and department-level users"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        from django.db.models import Count, Q
+        from accounts.models import UniversityStudent
+
+        if user.role not in ['department_manager', 'supervisor', 'system_manager']:
+            return Response({'error': 'غير مصرح'}, status=403)
+
+        # Determine department scope
+        if user.role == 'system_manager':
+            dept_id = request.query_params.get('department')
+            if dept_id:
+                try:
+                    dept = Department.objects.get(id=dept_id, is_deleted=False)
+                except Department.DoesNotExist:
+                    return Response({'error': 'القسم غير موجود'}, status=404)
+            else:
+                dept = None
+        else:
+            dept = get_user_department(user)
+            if not dept:
+                return Response({'error': 'لا يوجد قسم مرتبط'}, status=403)
+
+        # Optional filters
+        level_filter = request.query_params.get('level')
+        semester_filter = request.query_params.get('semester')
+        subject_filter = request.query_params.get('subject')
+
+        # Base querysets
+        if dept:
+            courses_qs = Course.objects.filter(is_deleted=False, department=dept)
+            students_qs = UniversityStudent.objects.filter(department=dept)
+            all_depts = Department.objects.filter(id=dept.id, is_deleted=False)
+        else:
+            courses_qs = Course.objects.filter(is_deleted=False)
+            students_qs = UniversityStudent.objects.all()
+            all_depts = Department.objects.filter(is_deleted=False)
+
+        # Apply level/semester filters to courses
+        if level_filter:
+            courses_qs = courses_qs.filter(academic_year=level_filter)
+        if semester_filter:
+            courses_qs = courses_qs.filter(semester=semester_filter)
+
+        course_ids = courses_qs.values_list('id', flat=True)
+
+        # Lectures, assignments, submissions scoped to filtered courses
+        lectures_qs = Lecture.objects.filter(course_id__in=course_ids)
+        assignments_qs = Assignment.objects.filter(course_id__in=course_ids)
+        submissions_qs = Submission.objects.filter(assignment__course_id__in=course_ids)
+
+        if subject_filter:
+            lectures_qs = lectures_qs.filter(course_id=subject_filter)
+            assignments_qs = assignments_qs.filter(course_id=subject_filter)
+            submissions_qs = submissions_qs.filter(assignment__course_id=subject_filter)
+
+        # --- Quick Overview KPIs ---
+        total_departments = all_depts.count()
+        total_subjects = courses_qs.count()
+        assigned_subjects = CourseInstructor.objects.filter(
+            course_id__in=course_ids
+        ).values('course').distinct().count()
+        unassigned_subjects = total_subjects - assigned_subjects
+        total_lectures = lectures_qs.count()
+        total_assignments = assignments_qs.count()
+        total_submissions = submissions_qs.count()
+
+        # --- Student Distribution ---
+        # Per department
+        students_per_dept = list(
+            students_qs.values('department__name_ar')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        for item in students_per_dept:
+            item['name'] = item.pop('department__name_ar') or 'غير محدد'
+
+        # Per study level
+        students_per_level = list(
+            students_qs.filter(year__isnull=False)
+            .values('year')
+            .annotate(count=Count('id'))
+            .order_by('year')
+        )
+        for item in students_per_level:
+            item['name'] = f"السنة {item['year']}"
+
+        # Per semester
+        students_per_semester = list(
+            students_qs.filter(semester__isnull=False)
+            .values('semester')
+            .annotate(count=Count('id'))
+            .order_by('semester')
+        )
+        for item in students_per_semester:
+            item['name'] = f"الفصل {item['semester']}"
+
+        # --- Leaderboards ---
+
+        # Most Active Professors
+        prof_stats = (
+            CourseInstructor.objects.filter(course_id__in=course_ids)
+            .values('user__id', 'user__full_name_ar', 'user__username')
+            .annotate(
+                subjects_count=Count('course', distinct=True),
+            )
+            .order_by('-subjects_count')[:10]
+        )
+        active_professors = []
+        for ps in prof_stats:
+            prof_user_id = ps['user__id']
+            prof_course_ids = CourseInstructor.objects.filter(
+                user_id=prof_user_id, course_id__in=course_ids
+            ).values_list('course_id', flat=True)
+            active_professors.append({
+                'name': ps['user__full_name_ar'] or ps['user__username'],
+                'subjects_count': ps['subjects_count'],
+                'lectures_count': Lecture.objects.filter(course_id__in=prof_course_ids).count(),
+                'assignments_count': Assignment.objects.filter(course_id__in=prof_course_ids).count(),
+                'graded_count': Submission.objects.filter(
+                    assignment__course_id__in=prof_course_ids,
+                    grade__isnull=False
+                ).count(),
+            })
+        active_professors.sort(key=lambda x: x['subjects_count'], reverse=True)
+
+        # Most Advanced Subjects
+        advanced_subjects = []
+        subject_data = (
+            courses_qs
+            .annotate(
+                lec_count=Count('lectures', distinct=True),
+                assign_count=Count('assignments', distinct=True),
+            )
+            .order_by('-lec_count')[:10]
+        )
+        for s in subject_data:
+            instr = CourseInstructor.objects.filter(course=s).select_related('user').first()
+            sub_count = Submission.objects.filter(assignment__course=s).count()
+            advanced_subjects.append({
+                'name': s.name_ar,
+                'code': s.code,
+                'lectures_count': s.lec_count,
+                'department': s.department.name_ar if hasattr(s, 'department') else '',
+                'professor': (instr.user.full_name_ar or instr.user.username) if instr else '—',
+                'assignments_count': s.assign_count,
+                'submissions_count': sub_count,
+            })
+
+        # Most Active Department
+        dept_activity = list(
+            all_depts
+            .annotate(
+                subjects=Count('courses', filter=Q(courses__is_deleted=False), distinct=True),
+                lectures=Count('courses__lectures', filter=Q(courses__is_deleted=False), distinct=True),
+                assignments=Count('courses__assignments', filter=Q(courses__is_deleted=False), distinct=True),
+            )
+            .values('name_ar', 'subjects', 'lectures', 'assignments')
+            .order_by('-lectures')[:5]
+        )
+        for item in dept_activity:
+            item['name'] = item.pop('name_ar')
+
+        # Most Active Level
+        level_activity = list(
+            courses_qs
+            .values('academic_year')
+            .annotate(
+                subjects=Count('id', distinct=True),
+                lectures=Count('lectures', distinct=True),
+                assignments=Count('assignments', distinct=True),
+            )
+            .order_by('-lectures')
+        )
+        for item in level_activity:
+            item['name'] = f"السنة {item['academic_year']}"
+
+        # Most Active Semester
+        semester_activity = list(
+            courses_qs
+            .values('semester')
+            .annotate(
+                subjects=Count('id', distinct=True),
+                lectures=Count('lectures', distinct=True),
+                assignments=Count('assignments', distinct=True),
+            )
+            .order_by('-lectures')
+        )
+        for item in semester_activity:
+            item['name'] = f"الفصل {item['semester']}"
+
+        return Response({
+            'department': {'id': dept.id, 'name': dept.name_ar} if dept else None,
+            'kpis': {
+                'total_departments': total_departments,
+                'total_subjects': total_subjects,
+                'assigned_subjects': assigned_subjects,
+                'unassigned_subjects': unassigned_subjects,
+                'total_lectures': total_lectures,
+                'total_assignments': total_assignments,
+                'total_submissions': total_submissions,
+            },
+            'student_distribution': {
+                'per_department': students_per_dept,
+                'per_level': students_per_level,
+                'per_semester': students_per_semester,
+            },
+            'leaderboards': {
+                'active_professors': active_professors,
+                'advanced_subjects': advanced_subjects,
+                'active_departments': dept_activity,
+                'active_levels': level_activity,
+                'active_semesters': semester_activity,
+            },
+        })

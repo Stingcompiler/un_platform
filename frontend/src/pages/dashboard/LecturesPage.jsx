@@ -1,16 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    Video, Filter, Search, ChevronLeft, ChevronRight, Play, Paperclip, X,
-    BarChart2, BookOpen, FileText, Clock, TrendingUp, Upload, Calendar
+    Video, Filter, Search, ChevronLeft, ChevronRight, X,
+    BookOpen, FileText, Play, BarChart2, Upload, Clock, TrendingUp, Calendar, Layers
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
-const PER_PAGE = 9;
+const PER_PAGE = 20;
 
 // ── Stat Card ────────────────────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
 function StatCard({ icon: Icon, label, value, color = 'accent', sub }) {
     const colors = {
         accent: 'from-[var(--color-accent)]/20 to-[var(--color-accent)]/5 border-[var(--color-accent)]/30 text-[var(--color-accent)]',
@@ -21,48 +20,24 @@ function StatCard({ icon: Icon, label, value, color = 'accent', sub }) {
         pink: 'from-pink-500/20 to-pink-500/5 border-pink-500/30 text-pink-400',
     };
     return (
-        <div className={`glass-card p-5 bg-gradient-to-br border ${colors[color]} group hover:-translate-y-0.5 transition-transform`}>
-            <div className="flex items-start justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${colors[color]}`}>
-                    <Icon className="w-5 h-5" />
+        <div className={`glass-card p-4 bg-gradient-to-br border ${colors[color]} group hover:-translate-y-0.5 transition-transform`}>
+            <div className="flex items-start justify-between mb-2">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br ${colors[color]}`}>
+                    <Icon className="w-4 h-4" />
                 </div>
             </div>
-            <p className="text-2xl font-bold text-white">{value ?? '—'}</p>
-            <p className="text-sm text-[var(--color-text-muted)] mt-1">{label}</p>
-            {sub && <p className="text-xs text-[var(--color-text-muted)] mt-1 opacity-60">{sub}</p>}
-        </div>
-    );
-}
-
-// ── Mini Bar Chart ────────────────────────────────────────────────────────────
-function TrendChart({ data }) {
-    if (!data || data.length === 0) return (
-        <div className="flex items-center justify-center h-20 text-[var(--color-text-muted)] text-sm">
-            لا توجد بيانات خلال الـ 30 يوم الماضية
-        </div>
-    );
-    const max = Math.max(...data.map(d => d.count), 1);
-    return (
-        <div className="flex items-end gap-1 h-20 w-full">
-            {data.map((d, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-                    <div
-                        className="w-full rounded-t-sm bg-[var(--color-accent)]/40 group-hover:bg-[var(--color-accent)] transition-colors"
-                        style={{ height: `${Math.max(4, (d.count / max) * 100)}%` }}
-                    />
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:block bg-black/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                        {d.date}: {d.count}
-                    </div>
-                </div>
-            ))}
+            <p className="text-xl font-bold text-white">{value ?? '—'}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">{label}</p>
+            {sub && <p className="text-xs text-[var(--color-text-muted)] mt-0.5 opacity-60">{sub}</p>}
         </div>
     );
 }
 
 export default function LecturesPage() {
     const { user } = useAuth();
-    const isManager = ['department_manager', 'supervisor'].includes(user?.role);
     const isAdmin = user?.role === 'system_manager';
+    const isManager = ['department_manager', 'supervisor'].includes(user?.role);
+    const isProfessor = ['teacher', 'ta'].includes(user?.role);
 
     const [lectures, setLectures] = useState([]);
     const [departments, setDepartments] = useState([]);
@@ -71,13 +46,12 @@ export default function LecturesPage() {
     const [loading, setLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(true);
 
-    // Filters — dept filter only shown to system_manager
+    // Role-based filters
     const [dept, setDept] = useState('');
+    const [level, setLevel] = useState('');
     const [semester, setSemester] = useState('');
-    const [year, setYear] = useState('');
-    const [course, setCourse] = useState('');
-    const [search, setSearch] = useState('');
-    const [type, setType] = useState('');
+    const [subjectSearch, setSubjectSearch] = useState('');
+    const [lectureSearch, setLectureSearch] = useState('');
     const [page, setPage] = useState(1);
 
     useEffect(() => {
@@ -91,7 +65,6 @@ export default function LecturesPage() {
                 api.get('/academic/courses/'),
                 api.get('/academic/lectures/'),
             ];
-            // Only load all departments for system_manager
             if (isAdmin) {
                 promises.unshift(api.get('/academic/departments/'));
             }
@@ -118,35 +91,65 @@ export default function LecturesPage() {
         finally { setStatsLoading(false); }
     };
 
-    const visibleCourses = useMemo(() => courses.filter(c => {
-        if (dept && String(c.department) !== dept) return false;
-        if (semester && String(c.semester) !== semester) return false;
-        if (year && String(c.academic_year) !== year) return false;
-        return true;
-    }), [courses, dept, semester, year]);
+    // Build a map for course ID -> course details
+    const courseMap = useMemo(() => {
+        const m = {};
+        courses.forEach(c => { m[c.id] = c; });
+        return m;
+    }, [courses]);
 
-    const vcIds = useMemo(() => new Set(visibleCourses.map(c => String(c.id))), [visibleCourses]);
+    // Count lectures per course
+    const courseLectureCounts = useMemo(() => {
+        const counts = {};
+        lectures.forEach(l => {
+            if (l.course) {
+                counts[l.course] = (counts[l.course] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [lectures]);
 
-    const filtered = useMemo(() => lectures.filter(l => {
-        if (course && String(l.course) !== course) return false;
-        if (!course && (dept || semester || year) && !vcIds.has(String(l.course))) return false;
-        if (type && l.lecture_type !== type) return false;
-        if (search) {
-            const q = search.toLowerCase();
+    // Enrich lectures with course data
+    const enrichedLectures = useMemo(() => lectures.map(l => {
+        const c = courseMap[l.course] || {};
+        return {
+            ...l,
+            subject_id: c.code || '—',
+            subject_name: c.name_ar || l.course_name || '—',
+            subject_type: l.lecture_type === 'theory' ? 'نظري' : l.lecture_type === 'lab' ? 'عملي' : '—',
+            level: c.academic_year || '—',
+            semester_val: c.semester || '—',
+            professor_name: c.instructors?.map(i => i.name).join(', ') || l.created_by_name || '—',
+            department_id: c.department,
+            subject_lecture_count: courseLectureCounts[l.course] || 0,
+        };
+    }), [lectures, courseMap, courseLectureCounts]);
+
+    // Filtered results
+    const filtered = useMemo(() => enrichedLectures.filter(l => {
+        if (dept && String(l.department_id) !== dept) return false;
+        if (level && String(l.level) !== level) return false;
+        if (semester && String(l.semester_val) !== semester) return false;
+        if (subjectSearch) {
+            const q = subjectSearch.toLowerCase();
+            if (!l.subject_name.toLowerCase().includes(q) &&
+                !l.subject_id.toLowerCase().includes(q)) return false;
+        }
+        // Lecture title search — not available for professors
+        if (lectureSearch && !isProfessor) {
+            const q = lectureSearch.toLowerCase();
             if (!(l.title_ar || '').toLowerCase().includes(q) &&
-                !(l.title || '').toLowerCase().includes(q) &&
-                !(l.course_name || '').toLowerCase().includes(q)) return false;
+                !(l.title || '').toLowerCase().includes(q)) return false;
         }
         return true;
-    }), [lectures, course, dept, semester, year, vcIds, type, search]);
+    }), [enrichedLectures, dept, level, semester, subjectSearch, lectureSearch, isProfessor]);
 
     const totalPages = Math.ceil(filtered.length / PER_PAGE);
     const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-    const years = [...new Set(courses.map(c => c.academic_year))].sort();
-    const semesters = [...new Set(courses.map(c => c.semester))].sort();
-    const activeCount = [dept, semester, year, course, search, type].filter(Boolean).length;
+    const activeCount = [dept, level, semester, subjectSearch, lectureSearch].filter(Boolean).length;
 
-    const reset = () => { setDept(''); setSemester(''); setYear(''); setCourse(''); setSearch(''); setType(''); setPage(1); };
+    const reset = () => { setDept(''); setLevel(''); setSemester(''); setSubjectSearch(''); setLectureSearch(''); setPage(1); };
+
     const go = (p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
     if (loading) return <div className="flex justify-center py-20"><div className="spinner"></div></div>;
@@ -155,90 +158,45 @@ export default function LecturesPage() {
         <div>
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-3xl font-bold mb-2">المحاضرات</h1>
-                <p className="text-[var(--color-text-muted)]">
-                    {isAdmin
-                        ? 'تصفح وفلترة جميع المحاضرات حسب القسم والسنة والفصل والمادة'
-                        : isManager
-                        ? 'محاضرات قسمك — مرتبة حسب الفلاتر المحددة'
-                        : 'محاضراتي المرتبطة بالمواد المعينة'}
-                </p>
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-500/5 border border-blue-500/30 flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-bold">المحاضرات</h1>
+                        <p className="text-[var(--color-text-muted)]">
+                            {isAdmin
+                                ? 'تصفح وفلترة جميع المحاضرات حسب القسم والمستوى والفصل'
+                                : isManager
+                                    ? 'محاضرات قسمك — مرتبة حسب الفلاتر المحددة'
+                                    : 'محاضراتي المرتبطة بالمواد المعينة'}
+                        </p>
+                    </div>
+                </div>
             </div>
 
-            {/* ── Statistics Section ──────────────────────────────────────────── */}
+            {/* ── Quick Stats (condensed) ───────────────────────────────────── */}
             {!statsLoading && lectureStats && (
-                <div className="mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                        <BarChart2 className="w-5 h-5 text-[var(--color-accent)]" />
-                        <h2 className="font-semibold text-lg">إحصائيات المحاضرات</h2>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-6">
-                        <StatCard icon={Video} label="إجمالي المحاضرات" value={lectureStats.total_lectures} color="accent" />
-                        <StatCard icon={FileText} label="ملفات مرفقة" value={lectureStats.total_files} color="blue" />
-                        <StatCard icon={Play} label="محاضرات بفيديو" value={lectureStats.total_videos} color="purple" />
-                        <StatCard icon={BookOpen} label="مواد بمحاضرات" value={lectureStats.courses_with_lectures} sub={`من ${lectureStats.total_courses} مادة`} color="green" />
-                        <StatCard icon={Upload} label="رفع خلال 7 أيام" value={lectureStats.recent_uploads} color="orange" />
-                        <StatCard icon={Clock} label="آخر رفع" value={lectureStats.last_upload || '—'} color="pink" />
-                    </div>
-
-                    {/* Type breakdown + trend */}
-                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                        {/* Theory vs Lab */}
-                        <div className="glass-card p-5">
-                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                                <BarChart2 className="w-4 h-4 text-[var(--color-accent)]" />
-                                توزيع أنواع المحاضرات
-                            </h3>
-                            <div className="space-y-3">
-                                <div>
-                                    <div className="flex justify-between text-sm mb-1">
-                                        <span className="text-blue-400">نظري</span>
-                                        <span className="text-[var(--color-text-muted)]">{lectureStats.theory_count}</span>
-                                    </div>
-                                    <div className="h-2 rounded-full bg-white/10">
-                                        <div
-                                            className="h-2 rounded-full bg-blue-500 transition-all"
-                                            style={{ width: lectureStats.total_lectures ? `${(lectureStats.theory_count / lectureStats.total_lectures) * 100}%` : '0%' }}
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-sm mb-1">
-                                        <span className="text-green-400">عملي</span>
-                                        <span className="text-[var(--color-text-muted)]">{lectureStats.lab_count}</span>
-                                    </div>
-                                    <div className="h-2 rounded-full bg-white/10">
-                                        <div
-                                            className="h-2 rounded-full bg-green-500 transition-all"
-                                            style={{ width: lectureStats.total_lectures ? `${(lectureStats.lab_count / lectureStats.total_lectures) * 100}%` : '0%' }}
-                                        />
-                                    </div>
-                                </div>
-                                {lectureStats.courses_without_lectures > 0 && (
-                                    <p className="text-xs text-orange-400 mt-2">
-                                        ⚠ {lectureStats.courses_without_lectures} مادة بدون محاضرات
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Upload trend chart */}
-                        <div className="glass-card p-5">
-                            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                                <TrendingUp className="w-4 h-4 text-[var(--color-accent)]" />
-                                نشاط الرفع — آخر 30 يوماً
-                                <span className="text-xs text-[var(--color-text-muted)] mr-auto">
-                                    <Calendar className="w-3 h-3 inline ml-1" />
-                                    {lectureStats.recent_uploads} في آخر 7 أيام
-                                </span>
-                            </h3>
-                            <TrendChart data={lectureStats.upload_trends} />
-                        </div>
-                    </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                    <StatCard icon={Video} label="إجمالي المحاضرات" value={lectureStats.total_lectures} color="accent" />
+                    <StatCard icon={FileText} label="ملفات مرفقة" value={lectureStats.total_files} color="blue" />
+                    <StatCard icon={Play} label="محاضرات بفيديو" value={lectureStats.total_videos} color="purple" />
+                    <StatCard icon={BookOpen} label="مواد بمحاضرات" value={lectureStats.courses_with_lectures} sub={`من ${lectureStats.total_courses}`} color="green" />
+                    <StatCard icon={Upload} label="رفع (7 أيام)" value={lectureStats.recent_uploads} color="orange" />
+                    <StatCard icon={Clock} label="آخر رفع" value={lectureStats.last_upload || '—'} color="pink" />
                 </div>
             )}
 
-            {/* Filters */}
+            {/* ── Dept context banner for managers ─────────────────────────── */}
+            {isManager && user?.department && (
+                <div className="mb-4 px-4 py-2 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 text-sm flex items-center gap-2">
+                    <span className="text-[var(--color-accent)] font-medium">القسم:</span>
+                    <span>{user.department.name_ar}</span>
+                    <span className="text-[var(--color-text-muted)] text-xs mr-auto">البيانات مقيدة بقسمك فقط</span>
+                </div>
+            )}
+
+            {/* ── Filters ──────────────────────────────────────────────────── */}
             <div className="glass-card p-5 mb-6">
                 <div className="flex items-center justify-between mb-4">
                     <span className="font-semibold flex items-center gap-2">
@@ -253,43 +211,42 @@ export default function LecturesPage() {
                     )}
                 </div>
 
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-                    <div className="lg:col-span-1 relative">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {/* Subject Name Search */}
+                    <div className="relative">
                         <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
-                        <input type="text" className="input-field pr-10" placeholder="ابحث عن محاضرة..."
-                            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+                        <input type="text" className="input-field pr-10" placeholder="ابحث باسم المادة..."
+                            value={subjectSearch} onChange={e => { setSubjectSearch(e.target.value); setPage(1); }} />
                     </div>
+
+                    {/* Lecture Title Search — hidden from professor */}
+                    {!isProfessor && (
+                        <div className="relative">
+                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+                            <input type="text" className="input-field pr-10" placeholder="ابحث بعنوان المحاضرة..."
+                                value={lectureSearch} onChange={e => { setLectureSearch(e.target.value); setPage(1); }} />
+                        </div>
+                    )}
 
                     {/* Department filter — system_manager only */}
                     {isAdmin && (
-                        <select className="input-field" value={dept} onChange={e => { setDept(e.target.value); setCourse(''); setPage(1); }}>
+                        <select className="input-field" value={dept} onChange={e => { setDept(e.target.value); setPage(1); }}>
                             <option value="">جميع الأقسام</option>
                             {departments.map(d => <option key={d.id} value={d.id}>{d.name_ar}</option>)}
                         </select>
                     )}
 
-                    <select className="input-field" value={year} onChange={e => { setYear(e.target.value); setCourse(''); setPage(1); }}>
-                        <option value="">جميع السنوات</option>
-                        {years.map(y => <option key={y} value={y}>السنة {y}</option>)}
+                    {/* Level (1-5) */}
+                    <select className="input-field" value={level} onChange={e => { setLevel(e.target.value); setPage(1); }}>
+                        <option value="">جميع المستويات</option>
+                        {[1, 2, 3, 4, 5].map(y => <option key={y} value={y}>المستوى {y}</option>)}
                     </select>
-                    <select className="input-field" value={semester} onChange={e => { setSemester(e.target.value); setCourse(''); setPage(1); }}>
+
+                    {/* Semester (1-10) */}
+                    <select className="input-field" value={semester} onChange={e => { setSemester(e.target.value); setPage(1); }}>
                         <option value="">جميع الفصول</option>
-                        {semesters.map(s => <option key={s} value={s}>الفصل {s}</option>)}
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(s => <option key={s} value={s}>الفصل {s}</option>)}
                     </select>
-                    <select className="input-field" value={course} onChange={e => { setCourse(e.target.value); setPage(1); }}>
-                        <option value="">جميع المواد</option>
-                        {(dept || year || semester ? visibleCourses : courses).map(c => (
-                            <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>
-                        ))}
-                    </select>
-                    <div className="flex gap-2">
-                        {[['', 'الكل'], ['theory', 'نظري'], ['lab', 'عملي']].map(([v, l]) => (
-                            <button key={v} onClick={() => { setType(v); setPage(1); }}
-                                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${type === v ? 'bg-[var(--color-accent)] text-[var(--color-bg)]' : 'bg-white/5 hover:bg-white/10 text-[var(--color-text-muted)]'}`}>
-                                {l}
-                            </button>
-                        ))}
-                    </div>
                 </div>
             </div>
 
@@ -301,11 +258,101 @@ export default function LecturesPage() {
                 {totalPages > 1 && <p className="text-sm text-[var(--color-text-muted)]">صفحة {page} من {totalPages}</p>}
             </div>
 
-            {/* Grid */}
+            {/* ── Data Table (Desktop) ─────────────────────────────────────── */}
             {paginated.length > 0 ? (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {paginated.map(l => <LectureCard key={l.id} lecture={l} />)}
-                </div>
+                <>
+                    <div className="glass-card overflow-hidden hidden sm:block">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-white/5 border-b border-white/10">
+                                    <tr>
+                                        <th className="text-right p-4 font-semibold text-[var(--color-text-muted)] whitespace-nowrap">رمز المادة</th>
+                                        <th className="text-right p-4 font-semibold text-[var(--color-text-muted)] whitespace-nowrap">اسم المادة</th>
+                                        <th className="text-right p-4 font-semibold text-[var(--color-text-muted)] whitespace-nowrap">النوع</th>
+                                        <th className="text-right p-4 font-semibold text-[var(--color-text-muted)] whitespace-nowrap">المستوى</th>
+                                        <th className="text-right p-4 font-semibold text-[var(--color-text-muted)] whitespace-nowrap">الفصل</th>
+                                        <th className="text-right p-4 font-semibold text-[var(--color-text-muted)] whitespace-nowrap">المحاضرات</th>
+                                        <th className="text-right p-4 font-semibold text-[var(--color-text-muted)] whitespace-nowrap">الأستاذ</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {paginated.map(l => (
+                                        <tr key={l.id} className="hover:bg-white/4 transition-colors group cursor-pointer">
+                                            <td className="p-4">
+                                                <Link to={`/dashboard/lecture/${l.id}`} className="block">
+                                                    <span className="px-2 py-1 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs font-mono font-medium">
+                                                        {l.subject_id}
+                                                    </span>
+                                                </Link>
+                                            </td>
+                                            <td className="p-4">
+                                                <Link to={`/dashboard/lecture/${l.id}`} className="block">
+                                                    <p className="font-medium group-hover:text-[var(--color-accent)] transition-colors line-clamp-1">{l.subject_name}</p>
+                                                    <p className="text-xs text-[var(--color-text-muted)] line-clamp-1 mt-0.5">{l.title_ar || l.title || '—'}</p>
+                                                </Link>
+                                            </td>
+                                            <td className="p-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${l.lecture_type === 'theory'
+                                                    ? 'bg-blue-500/15 text-blue-400'
+                                                    : l.lecture_type === 'lab'
+                                                        ? 'bg-green-500/15 text-green-400'
+                                                        : 'bg-white/10 text-[var(--color-text-muted)]'
+                                                    }`}>
+                                                    {l.subject_type}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-[var(--color-text-muted)]">
+                                                <span className="flex items-center gap-1">
+                                                    <Layers className="w-3.5 h-3.5" /> {l.level}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-[var(--color-text-muted)]">
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar className="w-3.5 h-3.5" /> {l.semester_val}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-[var(--color-text-muted)]">
+                                                <span className="flex items-center gap-1">
+                                                    <Video className="w-3.5 h-3.5" /> {l.subject_lecture_count}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-[var(--color-text-muted)]">
+                                                <span className="line-clamp-1">{l.professor_name}</span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* ── Mobile Cards ──────────────────────────────────────── */}
+                    <div className="sm:hidden space-y-3">
+                        {paginated.map(l => (
+                            <Link key={l.id} to={`/dashboard/lecture/${l.id}`}
+                                className="glass-card p-4 block hover:bg-white/5 transition-all active:scale-[0.98]">
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs font-mono">{l.subject_id}</span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${l.lecture_type === 'theory' ? 'bg-blue-500/15 text-blue-400' : 'bg-green-500/15 text-green-400'}`}>
+                                            {l.subject_type}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
+                                        <Layers className="w-3 h-3" /> {l.level} • <Calendar className="w-3 h-3" /> {l.semester_val}
+                                    </span>
+                                </div>
+                                <p className="font-semibold mb-1">{l.subject_name}</p>
+                                <p className="text-xs text-[var(--color-text-muted)] mb-2 line-clamp-1">{l.title_ar || l.title || '—'}</p>
+                                <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 pt-2 border-t border-white/10">
+                                    <BookOpen className="w-3 h-3" /> {l.professor_name}
+                                    <span className="mx-1">•</span>
+                                    <Video className="w-3 h-3" /> {l.subject_lecture_count} محاضرات
+                                </p>
+                            </Link>
+                        ))}
+                    </div>
+                </>
             ) : (
                 <div className="glass-card p-16 text-center">
                     <div className="w-20 h-20 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center mx-auto mb-4">
@@ -319,43 +366,6 @@ export default function LecturesPage() {
 
             {totalPages > 1 && <Pagination current={page} total={totalPages} onChange={go} />}
         </div>
-    );
-}
-
-function LectureCard({ lecture }) {
-    const isTheory = lecture.lecture_type === 'theory';
-    return (
-        <Link to={`/dashboard/lecture/${lecture.id}`}
-            className="glass-card p-5 flex flex-col hover:bg-white/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 group">
-            <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isTheory ? 'bg-blue-500/20' : 'bg-green-500/20'}`}>
-                    <Video className={`w-6 h-6 ${isTheory ? 'text-blue-400' : 'text-green-400'}`} />
-                </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${isTheory ? 'bg-blue-500/15 text-blue-400' : 'bg-green-500/15 text-green-400'}`}>
-                    {isTheory ? 'نظري' : 'عملي'}
-                </span>
-            </div>
-            <h3 className="font-semibold text-lg mb-1 line-clamp-2 group-hover:text-[var(--color-accent)] transition-colors">
-                {lecture.title_ar || lecture.title}
-            </h3>
-            <p className="text-sm text-[var(--color-accent)]/80 mb-2 line-clamp-1">{lecture.course_name || '—'}</p>
-            <p className="text-sm text-[var(--color-text-muted)] line-clamp-3 flex-1 mb-4">{lecture.content || 'لا يوجد وصف'}</p>
-            <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                <div className="flex gap-1.5">
-                    {(lecture.video_file || lecture.video_url) && (
-                        <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
-                            <Play className="w-2.5 h-2.5" />فيديو
-                        </span>
-                    )}
-                    {lecture.file && (
-                        <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">
-                            <Paperclip className="w-2.5 h-2.5" />ملف
-                        </span>
-                    )}
-                </div>
-                <span className="text-xs text-[var(--color-text-muted)]">م. {lecture.order}</span>
-            </div>
-        </Link>
     );
 }
 

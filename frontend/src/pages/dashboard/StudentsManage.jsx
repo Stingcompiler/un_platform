@@ -228,11 +228,21 @@ export default function StudentsManage() {
                         <span className="text-[var(--color-text-muted)] text-xs mr-auto">البيانات مقيدة بقسمك فقط</span>
                     </div>
                 )}
-                <div className={`grid gap-4 ${isAdmin ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                <div className={`grid gap-4 ${isAdmin ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2 lg:grid-cols-3'}`}>
+                    {/* Student Name Search */}
+                    <div className="relative">
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+                        <input
+                            type="text"
+                            className="input-field pr-10"
+                            placeholder="ابحث باسم الطالب..."
+                            value={filters.search}
+                            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                        />
+                    </div>
                     {/* Department filter — system_manager only */}
                     {isAdmin && (
                         <div>
-                            <label className="block text-sm font-medium mb-1">القسم</label>
                             <select
                                 value={filters.department}
                                 onChange={(e) => setFilters({ ...filters, department: e.target.value })}
@@ -248,7 +258,6 @@ export default function StudentsManage() {
                         </div>
                     )}
                     <div>
-                        <label className="block text-sm font-medium mb-1">السنة الدراسية</label>
                         <select
                             value={filters.year}
                             onChange={(e) => setFilters({ ...filters, year: e.target.value })}
@@ -263,7 +272,6 @@ export default function StudentsManage() {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium mb-1">حالة التسجيل</label>
                         <select
                             value={filters.registered}
                             onChange={(e) => setFilters({ ...filters, registered: e.target.value })}

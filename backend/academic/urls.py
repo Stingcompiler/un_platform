@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     DepartmentViewSet, CourseViewSet, CourseInstructorViewSet,
     LectureViewSet, AssignmentViewSet, SubmissionViewSet, CourseResultViewSet,
-    DashboardStatsView, LectureStatsView, DepartmentReportView
+    DashboardStatsView, LectureStatsView, DepartmentReportView,
+    ProfessorsListView, ComprehensiveReportView
 )
 
 router = DefaultRouter()
@@ -19,5 +20,8 @@ urlpatterns = [
     path('dashboard-stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('lecture-stats/', LectureStatsView.as_view(), name='lecture-stats'),
     path('department-report/', DepartmentReportView.as_view(), name='department-report'),
+    path('professors/', ProfessorsListView.as_view(), name='professors-list'),
+    path('comprehensive-report/', ComprehensiveReportView.as_view(), name='comprehensive-report'),
     path('', include(router.urls)),
 ]
+

@@ -28,6 +28,7 @@ import LecturesPage from './LecturesPage';
 import ExerciseDetail from './ExerciseDetail';
 import OperationsLog from './OperationsLog';
 import ReportsPage from './ReportsPage';
+import ProfessorsPage from './ProfessorsPage';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
@@ -56,6 +57,7 @@ export default function Dashboard() {
                     { path: '/dashboard/departments', icon: BookOpen, label: 'الأقسام' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'الطلاب' },
                     { path: '/dashboard/users', icon: Users, label: 'المستخدمين' },
+                    { path: '/dashboard/professors', icon: Users, label: 'الأساتذة' },
                     { path: '/dashboard/events', icon: Calendar, label: 'الفعاليات' },
                     { path: '/dashboard/messages', icon: MessageSquare, label: 'الرسائل' },
                 ];
@@ -64,6 +66,7 @@ export default function Dashboard() {
                     ...baseItems,
                     { path: '/dashboard/courses', icon: BookOpen, label: 'المواد' },
                     { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
+                    { path: '/dashboard/professors', icon: Users, label: 'الأساتذة' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
                     { path: '/dashboard/reports', icon: BarChart2, label: 'التقارير' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
@@ -75,6 +78,7 @@ export default function Dashboard() {
                     ...baseItems,
                     { path: '/dashboard/courses', icon: BookOpen, label: 'المواد' },
                     { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
+                    { path: '/dashboard/professors', icon: Users, label: 'الأساتذة' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'طلاب القسم' },
                     { path: '/dashboard/reports', icon: BarChart2, label: 'التقارير' },
                     { path: '/dashboard/publish-results', icon: Award, label: 'النتائج' },
@@ -253,6 +257,7 @@ export default function Dashboard() {
                         <Route path="instructors" element={<CoursesList />} />
                         <Route path="operations" element={<OperationsLog />} />
                         <Route path="reports" element={<ReportsPage />} />
+                        <Route path="professors" element={<ProfessorsPage />} />
                         {/* Teacher/TA Routes */}
                         <Route path="my-courses" element={user?.role === 'student' ? <StudentCoursesView /> : <TeacherCourses />} />
                         <Route path="grading" element={<GradingPage />} />
