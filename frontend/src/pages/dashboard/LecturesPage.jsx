@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    Video, Filter, Search, ChevronLeft, ChevronRight, X,
-    BookOpen, FileText, Play, BarChart2, Upload, Clock, TrendingUp, Calendar, Layers
+    Video, Filter, Search, ChevronLeft, ChevronRight, X, Plus,
+    BookOpen, FileText, Play, BarChart2, Upload, Clock, TrendingUp, Calendar, Layers, Eye, Info
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -48,6 +48,7 @@ export default function LecturesPage() {
 
     // Role-based filters
     const [dept, setDept] = useState('');
+    const [selectedCourseId, setSelectedCourseId] = useState('');
     const [level, setLevel] = useState('');
     const [semester, setSemester] = useState('');
     const [subjectSearch, setSubjectSearch] = useState('');
@@ -128,6 +129,7 @@ export default function LecturesPage() {
     // Filtered results
     const filtered = useMemo(() => enrichedLectures.filter(l => {
         if (dept && String(l.department_id) !== dept) return false;
+        if (selectedCourseId && String(l.course) !== selectedCourseId) return false;
         if (level && String(l.level) !== level) return false;
         if (semester && String(l.semester_val) !== semester) return false;
         if (subjectSearch) {
@@ -135,20 +137,20 @@ export default function LecturesPage() {
             if (!l.subject_name.toLowerCase().includes(q) &&
                 !l.subject_id.toLowerCase().includes(q)) return false;
         }
-        // Lecture title search — not available for professors
-        if (lectureSearch && !isProfessor) {
+        // Lecture title search
+        if (lectureSearch) {
             const q = lectureSearch.toLowerCase();
             if (!(l.title_ar || '').toLowerCase().includes(q) &&
                 !(l.title || '').toLowerCase().includes(q)) return false;
         }
         return true;
-    }), [enrichedLectures, dept, level, semester, subjectSearch, lectureSearch, isProfessor]);
+    }), [enrichedLectures, dept, selectedCourseId, level, semester, subjectSearch, lectureSearch]);
 
     const totalPages = Math.ceil(filtered.length / PER_PAGE);
     const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-    const activeCount = [dept, level, semester, subjectSearch, lectureSearch].filter(Boolean).length;
+    const activeCount = [dept, selectedCourseId, level, semester, subjectSearch, lectureSearch].filter(Boolean).length;
 
-    const reset = () => { setDept(''); setLevel(''); setSemester(''); setSubjectSearch(''); setLectureSearch(''); setPage(1); };
+    const reset = () => { setDept(''); setSelectedCourseId(''); setLevel(''); setSemester(''); setSubjectSearch(''); setLectureSearch(''); setPage(1); };
 
     const go = (p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
@@ -158,20 +160,29 @@ export default function LecturesPage() {
         <div>
             {/* Header */}
             <div className="mb-8">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-500/5 border border-blue-500/30 flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-blue-400" />
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-500/5 border border-blue-500/30 flex items-center justify-center">
+                            <FileText className="w-6 h-6 text-blue-400" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold">المحاضرات</h1>
+                            <p className="text-[var(--color-text-muted)]">
+                                {isAdmin
+                                    ? 'تصفح وفلترة جميع المحاضرات حسب القسم والمستوى والفصل'
+                                    : isManager
+                                        ? 'محاضرات قسمك — مرتبة حسب الفلاتر المحددة'
+                                        : 'محاضراتي المرتبطة بالمواد المعينة'}
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-3xl font-bold">المحاضرات</h1>
-                        <p className="text-[var(--color-text-muted)]">
-                            {isAdmin
-                                ? 'تصفح وفلترة جميع المحاضرات حسب القسم والمستوى والفصل'
-                                : isManager
-                                    ? 'محاضرات قسمك — مرتبة حسب الفلاتر المحددة'
-                                    : 'محاضراتي المرتبطة بالمواد المعينة'}
-                        </p>
-                    </div>
+                    {(isProfessor || isManager) && (
+                        <Link to="/dashboard/my-courses" className="btn-accent shrink-0">
+                            <Plus className="w-5 h-5" />
+                            <span className="hidden sm:inline">إضافة محاضرة</span>
+                            <span className="sm:hidden">إضافة</span>
+                        </Link>
+                    )}
                 </div>
             </div>
 
@@ -219,14 +230,7 @@ export default function LecturesPage() {
                             value={subjectSearch} onChange={e => { setSubjectSearch(e.target.value); setPage(1); }} />
                     </div>
 
-                    {/* Lecture Title Search — hidden from professor */}
-                    {!isProfessor && (
-                        <div className="relative">
-                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
-                            <input type="text" className="input-field pr-10" placeholder="ابحث بعنوان المحاضرة..."
-                                value={lectureSearch} onChange={e => { setLectureSearch(e.target.value); setPage(1); }} />
-                        </div>
-                    )}
+
 
                     {/* Department filter — system_manager only */}
                     {isAdmin && (
@@ -235,6 +239,12 @@ export default function LecturesPage() {
                             {departments.map(d => <option key={d.id} value={d.id}>{d.name_ar}</option>)}
                         </select>
                     )}
+
+                    {/* Course dropdown — shows assigned courses for teachers, all courses otherwise */}
+                    <select className="input-field" value={selectedCourseId} onChange={e => { setSelectedCourseId(e.target.value); setPage(1); }}>
+                        <option value="">جميع المواد</option>
+                        {courses.map(c => <option key={c.id} value={c.id}>{c.name_ar} ({c.code})</option>)}
+                    </select>
 
                     {/* Level (1-5) */}
                     <select className="input-field" value={level} onChange={e => { setLevel(e.target.value); setPage(1); }}>
@@ -247,8 +257,67 @@ export default function LecturesPage() {
                         <option value="">جميع الفصول</option>
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(s => <option key={s} value={s}>الفصل {s}</option>)}
                     </select>
+
+                    {/* Lecture Title Search */}
+                    <div className="relative">
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+                        <input type="text" className="input-field pr-10" placeholder="ابحث بعنوان المحاضرة..."
+                            value={lectureSearch} onChange={e => { setLectureSearch(e.target.value); setPage(1); }} />
+                    </div>
                 </div>
             </div>
+
+            {/* ── Instant Course Detail Panel ──────────────────────────────── */}
+            {selectedCourseId && courseMap[selectedCourseId] && (() => {
+                const c = courseMap[selectedCourseId];
+                const lecCount = courseLectureCounts[selectedCourseId] || 0;
+                return (
+                    <div className="glass-card p-5 mb-6 border border-[var(--color-accent)]/20 bg-gradient-to-br from-[var(--color-accent)]/5 to-transparent animate-in fade-in">
+                        <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent)]/5 border border-[var(--color-accent)]/30 flex items-center justify-center">
+                                    <BookOpen className="w-5 h-5 text-[var(--color-accent)]" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold">{c.name_ar}</h3>
+                                    <p className="text-xs text-[var(--color-text-muted)]">{c.code} {c.name_en ? `• ${c.name_en}` : ''}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedCourseId('')} className="p-1.5 rounded-lg hover:bg-white/10 text-[var(--color-text-muted)]">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                            <div className="bg-white/5 rounded-lg p-2.5 text-center">
+                                <p className="text-lg font-bold text-[var(--color-accent)]">{lecCount}</p>
+                                <p className="text-xs text-[var(--color-text-muted)]">محاضرة</p>
+                            </div>
+                            <div className="bg-white/5 rounded-lg p-2.5 text-center">
+                                <p className="text-lg font-bold text-blue-400">{c.credit_hours || '—'}</p>
+                                <p className="text-xs text-[var(--color-text-muted)]">ساعات معتمدة</p>
+                            </div>
+                            <div className="bg-white/5 rounded-lg p-2.5 text-center">
+                                <p className="text-lg font-bold text-green-400">{c.academic_year || '—'}</p>
+                                <p className="text-xs text-[var(--color-text-muted)]">المستوى</p>
+                            </div>
+                            <div className="bg-white/5 rounded-lg p-2.5 text-center">
+                                <p className="text-lg font-bold text-purple-400">{c.semester || '—'}</p>
+                                <p className="text-xs text-[var(--color-text-muted)]">الفصل</p>
+                            </div>
+                        </div>
+                        {c.instructors && c.instructors.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-white/10">
+                                <p className="text-xs text-[var(--color-text-muted)] mb-1">الأساتذة:</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {c.instructors.map((inst, i) => (
+                                        <span key={i} className="px-2 py-1 rounded-full bg-white/5 text-xs">{inst.name}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* Summary */}
             <div className="flex items-center justify-between mb-5">
@@ -286,9 +355,18 @@ export default function LecturesPage() {
                                                 </Link>
                                             </td>
                                             <td className="p-4">
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedCourseId(String(l.course)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                                        className="font-medium hover:text-[var(--color-accent)] transition-colors line-clamp-1 text-right cursor-pointer">
+                                                        {l.subject_name}
+                                                    </button>
+                                                    <button onClick={(e) => { e.stopPropagation(); setSelectedCourseId(String(l.course)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                                        className="p-1 rounded hover:bg-[var(--color-accent)]/10 text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors shrink-0" title="عرض تفاصيل المادة">
+                                                        <Info className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                                 <Link to={`/dashboard/lecture/${l.id}`} className="block">
-                                                    <p className="font-medium group-hover:text-[var(--color-accent)] transition-colors line-clamp-1">{l.subject_name}</p>
-                                                    <p className="text-xs text-[var(--color-text-muted)] line-clamp-1 mt-0.5">{l.title_ar || l.title || '—'}</p>
+                                                    <p className="text-xs text-[var(--color-text-muted)] line-clamp-1 mt-0.5 hover:text-[var(--color-accent)] transition-colors">{l.title_ar || l.title || '—'}</p>
                                                 </Link>
                                             </td>
                                             <td className="p-4">
@@ -329,8 +407,8 @@ export default function LecturesPage() {
                     {/* ── Mobile Cards ──────────────────────────────────────── */}
                     <div className="sm:hidden space-y-3">
                         {paginated.map(l => (
-                            <Link key={l.id} to={`/dashboard/lecture/${l.id}`}
-                                className="glass-card p-4 block hover:bg-white/5 transition-all active:scale-[0.98]">
+                            <div key={l.id}
+                                className="glass-card p-4 block hover:bg-white/5 transition-all">
                                 <div className="flex items-start justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                         <span className="px-2 py-0.5 rounded-lg bg-[var(--color-accent)]/10 text-[var(--color-accent)] text-xs font-mono">{l.subject_id}</span>
@@ -342,15 +420,21 @@ export default function LecturesPage() {
                                         <Layers className="w-3 h-3" /> {l.level} • <Calendar className="w-3 h-3" /> {l.semester_val}
                                     </span>
                                 </div>
-                                <p className="font-semibold mb-1">{l.subject_name}</p>
-                                <p className="text-xs text-[var(--color-text-muted)] mb-2 line-clamp-1">{l.title_ar || l.title || '—'}</p>
+                                <button onClick={() => { setSelectedCourseId(String(l.course)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                                    className="font-semibold mb-1 text-right hover:text-[var(--color-accent)] transition-colors flex items-center gap-1">
+                                    {l.subject_name} <Info className="w-3 h-3 text-[var(--color-text-muted)]" />
+                                </button>
+                                <Link to={`/dashboard/lecture/${l.id}`} className="block">
+                                    <p className="text-xs text-[var(--color-text-muted)] mb-2 line-clamp-1 hover:text-[var(--color-accent)] transition-colors">{l.title_ar || l.title || '—'}</p>
+                                </Link>
                                 <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 pt-2 border-t border-white/10">
                                     <BookOpen className="w-3 h-3" /> {l.professor_name}
                                     <span className="mx-1">•</span>
                                     <Video className="w-3 h-3" /> {l.subject_lecture_count} محاضرات
                                 </p>
-                            </Link>
+                            </div>
                         ))}
+
                     </div>
                 </>
             ) : (

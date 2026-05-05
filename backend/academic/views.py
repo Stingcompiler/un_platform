@@ -254,13 +254,32 @@ class LectureViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         
-        # Supervisor sees only their department's lectures
-        if user.role == 'supervisor':
+        # Department manager sees only their department's lectures
+        if user.role == 'department_manager':
             dept = get_user_department(user)
             if dept:
                 queryset = queryset.filter(course__department=dept)
             else:
                 queryset = queryset.none()
+        # Supervisor sees only their department's lectures
+        elif user.role == 'supervisor':
+            dept = get_user_department(user)
+            if dept:
+                queryset = queryset.filter(course__department=dept)
+            else:
+                queryset = queryset.none()
+        # Teachers and TAs see only lectures for their assigned courses
+        elif user.role in ['teacher', 'ta']:
+            assigned_course_ids = CourseInstructor.objects.filter(
+                user=user
+            ).values_list('course_id', flat=True)
+            queryset = queryset.filter(course_id__in=assigned_course_ids)
+        # Students see only lectures for their department and year courses
+        elif user.role == 'student' and hasattr(user, 'university_student') and user.university_student:
+            queryset = queryset.filter(
+                course__department_id=user.university_student.department_id,
+                course__academic_year=user.university_student.year
+            )
         
         course = self.request.query_params.get('course')
         if course:

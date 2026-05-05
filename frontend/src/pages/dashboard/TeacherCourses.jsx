@@ -36,9 +36,10 @@ export default function TeacherCourses() {
     const fetchCourses = async () => {
         try {
             const res = await api.get('/academic/courses/');
-            setCourses(res.data.results || res.data);
-            if (res.data.length > 0) {
-                setSelectedCourse(res.data[0]);
+            const coursesList = res.data.results || res.data;
+            setCourses(coursesList);
+            if (coursesList.length > 0) {
+                setSelectedCourse(coursesList[0]);
             }
         } catch (error) {
             console.error('Error fetching courses:', error);
@@ -573,10 +574,10 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
             setElapsedSecs(s => s + 1);
         }, 1000);
 
-        // Slow-network warning after 3 minutes = 180 s
+        // Slow-network warning after 10 minutes = 600 s
         slowRef.current = setTimeout(() => {
             setShowSlowWarning(true);
-        }, 180_000);
+        }, 600_000);
     };
 
     const clearTimers = () => {
