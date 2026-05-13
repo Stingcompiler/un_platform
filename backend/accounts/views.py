@@ -306,10 +306,10 @@ class UniversityStudentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        
+
         # Import Department model
         from academic.models import Department
-        
+
         # Department managers only see students in their department
         if user.role == 'department_manager':
             managed_dept = Department.objects.filter(department_manager=user).first()
@@ -317,22 +317,39 @@ class UniversityStudentViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(department=managed_dept)
             else:
                 return queryset.none()
-        
-        # Filter by department (query param)
+
+        # Supervisors only see students in their department
+        elif user.role == 'supervisor':
+            supervised_dept = Department.objects.filter(supervisor=user, is_deleted=False).first()
+            if supervised_dept:
+                queryset = queryset.filter(department=supervised_dept)
+            else:
+                return queryset.none()
+
+        # Filter by department (query param — only effective for system_manager)
         department = self.request.query_params.get('department')
         if department:
             queryset = queryset.filter(department_id=department)
-        
+
         # Filter by year
         year = self.request.query_params.get('year')
         if year:
             queryset = queryset.filter(year=year)
-        
+
         # Filter by registration status
         registered = self.request.query_params.get('registered')
         if registered is not None:
             queryset = queryset.filter(is_registered=registered.lower() == 'true')
-        
+
+        # Search by name or university number
+        search = self.request.query_params.get('search', '').strip()
+        if search:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(full_name__icontains=search) |
+                Q(university_number__icontains=search)
+            )
+
         return queryset
     
     def perform_destroy(self, instance):
