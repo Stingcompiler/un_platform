@@ -29,6 +29,7 @@ import ExerciseDetail from './ExerciseDetail';
 import OperationsLog from './OperationsLog';
 import ReportsPage from './ReportsPage';
 import ProfessorsPage from './ProfessorsPage';
+import TeacherDetailPage from './TeacherDetailPage';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
@@ -258,6 +259,7 @@ export default function Dashboard() {
                         <Route path="operations" element={<OperationsLog />} />
                         <Route path="reports" element={<ReportsPage />} />
                         <Route path="professors" element={<ProfessorsPage />} />
+                        <Route path="professors/:id" element={<TeacherDetailPage />} />
                         {/* Teacher/TA Routes */}
                         <Route path="my-courses" element={user?.role === 'student' ? <StudentCoursesView /> : <TeacherCourses />} />
                         <Route path="grading" element={<GradingPage />} />

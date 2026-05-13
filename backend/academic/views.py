@@ -815,6 +815,7 @@ class ProfessorsListView(APIView):
                     'semesters': set(),
                     'departments': set(),
                     'department_name': '',
+                    'course_ids': set(),
                 }
             p = professors_map[uid]
             subj_label = f"{ci.course.code} - {ci.course.name_ar}"
@@ -824,10 +825,18 @@ class ProfessorsListView(APIView):
             p['semesters'].add(ci.course.semester)
             p['departments'].add(ci.course.department.name_ar)
             p['department_name'] = ci.course.department.name_ar
+            p['course_ids'].add(ci.course.id)
 
         # Convert sets to sorted lists for JSON
         result = []
         for prof in professors_map.values():
+            course_ids_list = list(prof['course_ids'])
+            practical_count = Lecture.objects.filter(
+                course_id__in=course_ids_list, lecture_type='lab'
+            ).count()
+            theoretical_count = Lecture.objects.filter(
+                course_id__in=course_ids_list, lecture_type='theory'
+            ).count()
             result.append({
                 'id': prof['id'],
                 'name': prof['name'],
@@ -835,10 +844,87 @@ class ProfessorsListView(APIView):
                 'study_years': sorted(prof['study_years']),
                 'semesters': sorted(prof['semesters']),
                 'department_name': ', '.join(sorted(prof['departments'])),
+                'courses_count': len(course_ids_list),
+                'practical_count': practical_count,
+                'theoretical_count': theoretical_count,
             })
 
         result.sort(key=lambda x: x['name'])
         return Response(result)
+
+
+class TeacherDetailView(APIView):
+    """Return detailed info for a single teacher (courses, grades, dept) — scoped by role"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        user = request.user
+        if user.role not in ['system_manager', 'department_manager', 'supervisor']:
+            return Response({'error': 'غير مصرح'}, status=403)
+
+        from django.contrib.auth import get_user_model as _gum
+        Teacher = _gum()
+
+        try:
+            teacher = Teacher.objects.get(id=pk, role__in=['teacher', 'ta'])
+        except Teacher.DoesNotExist:
+            return Response({'error': 'المدرس غير موجود'}, status=404)
+
+        # Non-admin scope check
+        if user.role != 'system_manager':
+            dept = get_user_department(user)
+            if not dept:
+                return Response({'error': 'لا يوجد قسم مرتبط'}, status=403)
+            in_dept = CourseInstructor.objects.filter(
+                user=teacher, course__department=dept, course__is_deleted=False
+            ).exists()
+            if not in_dept:
+                return Response({'error': 'المدرس ليس في قسمك'}, status=403)
+
+        # Fetch assignments scoped by role
+        if user.role == 'system_manager':
+            assignments = CourseInstructor.objects.filter(
+                user=teacher, course__is_deleted=False
+            ).select_related('course', 'course__department').order_by(
+                'course__academic_year', 'course__semester'
+            )
+        else:
+            dept = get_user_department(user)
+            assignments = CourseInstructor.objects.filter(
+                user=teacher, course__department=dept, course__is_deleted=False
+            ).select_related('course', 'course__department').order_by(
+                'course__academic_year', 'course__semester'
+            )
+
+        courses = []
+        for ci in assignments:
+            practical = Lecture.objects.filter(course=ci.course, lecture_type='lab').count()
+            theoretical = Lecture.objects.filter(course=ci.course, lecture_type='theory').count()
+            courses.append({
+                'id': ci.course.id,
+                'name': ci.course.name_ar,
+                'code': ci.course.code,
+                'academic_year': ci.course.academic_year,
+                'semester': ci.course.semester,
+                'department': ci.course.department.name_ar,
+                'role': ci.get_role_display(),
+                'practical_lectures': practical,
+                'theoretical_lectures': theoretical,
+                'total_lectures': practical + theoretical,
+            })
+
+        return Response({
+            'id': teacher.id,
+            'name': teacher.full_name_ar or teacher.username,
+            'username': teacher.username,
+            'email': teacher.email or '',
+            'role': teacher.role,
+            'role_display': teacher.get_role_display() if hasattr(teacher, 'get_role_display') else teacher.role,
+            'courses': courses,
+            'courses_count': len(courses),
+            'practical_count': sum(c['practical_lectures'] for c in courses),
+            'theoretical_count': sum(c['theoretical_lectures'] for c in courses),
+        })
 
 
 class ComprehensiveReportView(APIView):

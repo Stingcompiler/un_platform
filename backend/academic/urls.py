@@ -4,7 +4,7 @@ from .views import (
     DepartmentViewSet, CourseViewSet, CourseInstructorViewSet,
     LectureViewSet, AssignmentViewSet, SubmissionViewSet, CourseResultViewSet,
     DashboardStatsView, LectureStatsView, DepartmentReportView,
-    ProfessorsListView, ComprehensiveReportView
+    ProfessorsListView, TeacherDetailView, ComprehensiveReportView
 )
 
 router = DefaultRouter()
@@ -21,7 +21,9 @@ urlpatterns = [
     path('lecture-stats/', LectureStatsView.as_view(), name='lecture-stats'),
     path('department-report/', DepartmentReportView.as_view(), name='department-report'),
     path('professors/', ProfessorsListView.as_view(), name='professors-list'),
+    path('professors/<int:pk>/', TeacherDetailView.as_view(), name='teacher-detail'),
     path('comprehensive-report/', ComprehensiveReportView.as_view(), name='comprehensive-report'),
     path('', include(router.urls)),
 ]
+
 
