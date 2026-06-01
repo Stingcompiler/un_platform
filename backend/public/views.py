@@ -21,7 +21,7 @@ class PublicEventListView(APIView):
     
     def get(self, request):
         events = Event.objects.filter(is_published=True).order_by('-date')[:10]
-        serializer = EventListSerializer(events, many=True)
+        serializer = EventListSerializer(events, many=True, context={'request': request})
         return Response(serializer.data)
 
 
@@ -32,7 +32,7 @@ class PublicEventDetailView(APIView):
     def get(self, request, pk):
         try:
             event = Event.objects.get(pk=pk, is_published=True)
-            serializer = EventSerializer(event)
+            serializer = EventSerializer(event, context={'request': request})
             return Response(serializer.data)
         except Event.DoesNotExist:
             return Response({'error': 'الفعالية غير موجودة'}, status=status.HTTP_404_NOT_FOUND)
