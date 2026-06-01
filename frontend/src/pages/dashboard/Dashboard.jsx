@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
     LayoutDashboard, BookOpen, Users, FileText,
     Calendar, GraduationCap, ClipboardList,
-    Award, MessageSquare, LogOut, Home, Menu, X, User, Activity, BarChart2
+    Award, MessageSquare, LogOut, Home, Menu, X, User, Activity, BarChart2, Key
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,6 +30,7 @@ import OperationsLog from './OperationsLog';
 import ReportsPage from './ReportsPage';
 import ProfessorsPage from './ProfessorsPage';
 import TeacherDetailPage from './TeacherDetailPage';
+import PasswordManagePage from './PasswordManagePage';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
@@ -58,6 +59,7 @@ export default function Dashboard() {
                     { path: '/dashboard/departments', icon: BookOpen, label: 'الأقسام' },
                     { path: '/dashboard/students', icon: GraduationCap, label: 'الطلاب' },
                     { path: '/dashboard/users', icon: Users, label: 'المستخدمين' },
+                    { path: '/dashboard/password-manage', icon: Key, label: 'كلمات المرور' },
                     { path: '/dashboard/professors', icon: Users, label: 'الأساتذة' },
                     { path: '/dashboard/events', icon: Calendar, label: 'الفعاليات' },
                     { path: '/dashboard/messages', icon: MessageSquare, label: 'الرسائل' },
@@ -251,6 +253,7 @@ export default function Dashboard() {
                         <Route path="departments" element={<DepartmentsManage />} />
                         <Route path="students" element={<StudentsManage />} />
                         <Route path="users" element={<UsersManage />} />
+                        <Route path="password-manage" element={<PasswordManagePage />} />
                         <Route path="events" element={<EventsManage />} />
                         <Route path="messages" element={<MessagesView />} />
                         {/* Dept Manager Routes */}

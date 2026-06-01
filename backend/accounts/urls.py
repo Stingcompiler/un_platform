@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     StudentRegistrationView, LoginView, LogoutView,
     RefreshTokenView, CurrentUserView, UniversityStudentViewSet, UserViewSet,
-    ProfileUpdateView, ChangePasswordView, ActivityLogListView
+    ProfileUpdateView, ChangePasswordView, ActivityLogListView, AdminResetPasswordView
 )
 
 router = DefaultRouter()
@@ -21,6 +21,7 @@ urlpatterns = [
     path('profile/', ProfileUpdateView.as_view(), name='profile-update'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('activity-logs/', ActivityLogListView.as_view(), name='activity-logs'),
+    path('admin-reset-password/', AdminResetPasswordView.as_view(), name='admin-reset-password'),
     path('', include(router.urls)),
 ]
 

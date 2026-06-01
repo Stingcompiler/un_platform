@@ -11,6 +11,7 @@ import Footer from './components/common/Footer';
 import Home from './pages/public/Home';
 import About from './pages/public/About';
 import Departments from './pages/public/Departments';
+import DepartmentDetail from './pages/public/DepartmentDetail';
 import { Events, EventDetail } from './pages/public/Events';
 import Contact from './pages/public/Contact';
 import Policies from './pages/public/Policies';
@@ -76,6 +77,7 @@ function AppContent() {
       <Route path="/" element={<PublicLayout><Home /></PublicLayout>} />
       <Route path="/about" element={<PublicLayout><About /></PublicLayout>} />
       <Route path="/departments" element={<PublicLayout><Departments /></PublicLayout>} />
+      <Route path="/departments/:id" element={<PublicLayout><DepartmentDetail /></PublicLayout>} />
       <Route path="/events" element={<PublicLayout><Events /></PublicLayout>} />
       <Route path="/events/:id" element={<PublicLayout><EventDetail /></PublicLayout>} />
       <Route path="/contact" element={<PublicLayout><Contact /></PublicLayout>} />

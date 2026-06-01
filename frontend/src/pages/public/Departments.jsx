@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, Users, GraduationCap } from 'lucide-react';
+import { BookOpen, Users, GraduationCap, ArrowLeft } from 'lucide-react';
 import api from '../../services/api';
 
 export default function Departments() {
@@ -43,14 +44,30 @@ export default function Departments() {
                             {departments.map((dept, index) => {
                                 const Icon = iconOptions[index % iconOptions.length];
                                 return (
-                                    <div key={dept.id} className="glass-card p-8 card-hover">
-                                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)] flex items-center justify-center mb-6">
+                                    <div key={dept.id} className="glass-card p-8 card-hover flex flex-col items-start h-full">
+                                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)] flex items-center justify-center mb-6 shrink-0">
                                             <Icon className="w-8 h-8 text-[var(--color-accent)]" />
                                         </div>
                                         <h3 className="text-2xl font-bold mb-3">{dept.name_ar}</h3>
-                                        <p className="text-[var(--color-text-muted)] leading-relaxed">
+                                        <p 
+                                            className="text-[var(--color-text-muted)] leading-relaxed mb-6 flex-1 text-right w-full"
+                                            style={{
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: '3',
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis'
+                                            }}
+                                        >
                                             {dept.description_ar || 'قسم أكاديمي متميز يقدم برامج دراسية متنوعة تؤهل الطلاب لسوق العمل'}
                                         </p>
+                                        <Link 
+                                            to={`/departments/${dept.id}`}
+                                            className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-accent)] hover:underline mt-auto"
+                                        >
+                                            التفاصيل والمواد الدراسيّة
+                                            <ArrowLeft className="w-4 h-4 mr-1" />
+                                        </Link>
                                     </div>
                                 );
                             })}
@@ -66,3 +83,4 @@ export default function Departments() {
         </div>
     );
 }
+

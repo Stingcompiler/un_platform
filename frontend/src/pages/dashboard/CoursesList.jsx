@@ -78,7 +78,7 @@ export default function CoursesList() {
             // Filter teachers and TAs
             const teacherUsers = allUsers.filter(u => u.role === 'teacher' || u.role === 'ta');
             setTeachers(teacherUsers);
-            console.log('Teachers loaded:', teacherUsers); // Debug log
+
         } catch (error) {
             console.error('Error fetching teachers:', error);
         }

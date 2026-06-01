@@ -520,14 +520,24 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         role_filter = self.request.query_params.get('role')
+        search = self.request.query_params.get('search', '').strip()
         
         # System managers and superusers can see all users
         if user.is_superuser or user.role == 'system_manager':
             qs = User.objects.all().order_by('-date_joined')
             if role_filter:
                 qs = qs.filter(role=role_filter)
-            else:
+            elif not search:
                 qs = qs.exclude(role='student')
+                
+            if search:
+                from django.db.models import Q
+                qs = qs.filter(
+                    Q(username__icontains=search) |
+                    Q(full_name_ar__icontains=search) |
+                    Q(email__icontains=search) |
+                    Q(university_student__university_number__icontains=search)
+                )
             return qs
         
         # Department managers and supervisors can view teachers, TAs, and students when explicitly requested
@@ -550,5 +560,44 @@ class UserViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("المشرفون لا يمكنهم حذف المستخدمين")
         super().perform_destroy(instance)
+
+
+class AdminResetPasswordView(APIView):
+    """Reset any user's password without old password (System Manager only)"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        if request.user.role != 'system_manager' and not request.user.is_superuser:
+            return Response(
+                {'error': 'غير مصرح لك بإجراء هذه العملية'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        user_id = request.data.get('user_id')
+        new_password = request.data.get('new_password')
+        
+        if not user_id or not new_password:
+            return Response(
+                {'error': 'معرف المستخدم وكلمة المرور الجديدة مطلوبة'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        if len(new_password) < 8:
+            return Response(
+                {'error': 'كلمة المرور يجب أن تكون 8 أحرف على الأقل'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            target_user = User.objects.get(id=user_id)
+            target_user.set_password(new_password)
+            target_user.save()
+            return Response({'message': f'تم إعادة تعيين كلمة المرور للمستخدم {target_user.username} بنجاح'})
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'المستخدم غير موجود'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
 
 
