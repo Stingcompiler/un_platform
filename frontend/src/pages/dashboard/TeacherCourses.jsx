@@ -446,6 +446,12 @@ export default function TeacherCourses() {
                                                                 <p className="text-sm text-[var(--color-text-muted)]">
                                                                     الدرجة: {assignment.max_grade} | التسليم: {new Date(assignment.due_date).toLocaleDateString('ar-SD')}
                                                                 </p>
+                                                                {assignment.lecture_title && (
+                                                                    <p className="text-xs text-[var(--color-accent)] mt-0.5 flex items-center gap-1">
+                                                                        <Video className="w-3 h-3" />
+                                                                        محاضرة: {assignment.lecture_title}
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div className="flex gap-2 shrink-0 mr-3">
@@ -470,6 +476,12 @@ export default function TeacherCourses() {
                                                                 <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
                                                                     الدرجة: {assignment.max_grade} | التسليم: {new Date(assignment.due_date).toLocaleDateString('ar-SD')}
                                                                 </p>
+                                                                {assignment.lecture_title && (
+                                                                    <p className="text-xs text-[var(--color-accent)] mt-0.5 flex items-center gap-1">
+                                                                        <Video className="w-3 h-3" />
+                                                                        محاضرة: {assignment.lecture_title}
+                                                                    </p>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div className="flex gap-1 mt-3 pt-3 border-t border-white/5">
@@ -789,8 +801,20 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
         }
     };
 
+    const [mediaError, setMediaError] = React.useState('');
+
     const handleSubmit = (e) => {
         e.preventDefault();
+        // Require at least one of: video file, video URL, or resource file
+        const hasExistingVideo = !!(lecture?.video_file || lecture?.video_url);
+        const hasExistingFile = !!lecture?.file;
+        const hasVideo = !!(videoFile || formData.video_url || hasExistingVideo);
+        const hasFile = !!(file || hasExistingFile);
+        if (!hasVideo && !hasFile) {
+            setMediaError('يجب إضافة فيديو (ملف أو رابط) أو ملف مرجعي على الأقل قبل رفع المحاضرة.');
+            return;
+        }
+        setMediaError('');
         doSubmit();
     };
 
@@ -856,17 +880,19 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
                         {/* Titles */}
                         <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium mb-2">العنوان (عربي)</label>
+                                <label className="block text-sm font-medium mb-2">العنوان (عربي) <span className="text-red-400">*</span></label>
                                 <input
-                                    type="text" className="input-field"
+                                    type="text" required className="input-field"
+                                    placeholder="عنوان المحاضرة بالعربية"
                                     value={formData.title_ar}
                                     onChange={(e) => setFormData({ ...formData, title_ar: e.target.value })}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-2">Title (English)</label>
+                                <label className="block text-sm font-medium mb-2">Title (English) <span className="text-xs text-[var(--color-text-muted)]">(اختياري)</span></label>
                                 <input
                                     type="text" className="input-field"
+                                    placeholder="Lecture title in English (optional)"
                                     value={formData.title}
                                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                 />
@@ -969,6 +995,14 @@ function LectureModal({ course, lecture, isTA, onClose, onSave }) {
                                 </div>
                             </div>
                         </div>
+
+                        {/* ── Media validation error ── */}
+                        {mediaError && (
+                            <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                                <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg>
+                                {mediaError}
+                            </div>
+                        )}
 
                         {/* ── Upload Progress Panel (Bottom) ── */}
                         {loading && (
@@ -1073,14 +1107,24 @@ function AssignmentModal({ course, assignment, isTA, onClose, onSave }) {
         assignment_type: assignment?.assignment_type || (isTA ? 'lab' : 'theory'),
         max_grade: assignment?.max_grade || 10,
         due_date: assignment?.due_date?.split('T')[0] || '',
+        lecture: assignment?.lecture || '',
     });
     const [loading, setLoading] = useState(false);
+    const [courseLectures, setCourseLectures] = useState([]);
+
+    useEffect(() => {
+        // Fetch lectures for this course so the teacher can link the task to a specific lecture
+        api.get(`/academic/lectures/?course=${course.id}`)
+            .then(res => setCourseLectures(res.data.results || res.data))
+            .catch(() => {});
+    }, [course.id]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
             const data = { ...formData, course: course.id };
+            if (!data.lecture) delete data.lecture; // send null-safe
             if (assignment) {
                 await api.patch(`/academic/assignments/${assignment.id}/`, data);
             } else {
@@ -1106,22 +1150,39 @@ function AssignmentModal({ course, assignment, isTA, onClose, onSave }) {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Lecture link */}
+                    <div>
+                        <label className="block text-sm font-medium mb-2">المحاضرة المرتبطة <span className="text-xs text-[var(--color-text-muted)]">(اختياري)</span></label>
+                        <select
+                            className="input-field"
+                            value={formData.lecture}
+                            onChange={(e) => setFormData({ ...formData, lecture: e.target.value })}
+                        >
+                            <option value="">— غير مرتبط بمحاضرة —</option>
+                            {courseLectures.map(l => (
+                                <option key={l.id} value={l.id}>{l.title_ar || l.title || `محاضرة ${l.order}`}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div className="grid sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium mb-2">العنوان (عربي)</label>
+                            <label className="block text-sm font-medium mb-2">العنوان (عربي) <span className="text-red-400">*</span></label>
                             <input
                                 type="text"
                                 required
                                 className="input-field"
+                                placeholder="عنوان الواجب بالعربية"
                                 value={formData.title_ar}
                                 onChange={(e) => setFormData({ ...formData, title_ar: e.target.value })}
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium mb-2">Title (English)</label>
+                            <label className="block text-sm font-medium mb-2">Title (English) <span className="text-xs text-[var(--color-text-muted)]">(اختياري)</span></label>
                             <input
                                 type="text"
                                 className="input-field"
+                                placeholder="Assignment title in English (optional)"
                                 value={formData.title}
                                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                             />

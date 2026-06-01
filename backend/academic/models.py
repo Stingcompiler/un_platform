@@ -163,6 +163,14 @@ class Assignment(models.Model):
         related_name='assignments',
         verbose_name='المادة'
     )
+    lecture = models.ForeignKey(
+        'Lecture',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assignments',
+        verbose_name='المحاضرة المرتبطة'
+    )
     title = models.CharField(max_length=200, verbose_name='العنوان')
     title_ar = models.CharField(max_length=200, blank=True, verbose_name='العنوان بالعربية')
     description = models.TextField(verbose_name='الوصف')

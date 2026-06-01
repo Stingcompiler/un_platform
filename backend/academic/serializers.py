@@ -138,11 +138,12 @@ class AssignmentSerializer(serializers.ModelSerializer):
     """Serializer for Assignment"""
     course_name = serializers.CharField(source='course.name_ar', read_only=True)
     created_by_name = serializers.CharField(source='created_by.full_name_ar', read_only=True)
+    lecture_title = serializers.CharField(source='lecture.title_ar', read_only=True, default=None)
     submission_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Assignment
-        fields = ['id', 'course', 'course_name', 'title', 'title_ar', 'description',
+        fields = ['id', 'course', 'course_name', 'lecture', 'lecture_title', 'title', 'title_ar', 'description',
                   'assignment_type', 'due_date', 'max_grade', 'file', 
                   'created_by', 'created_by_name', 'submission_count',
                   'created_at', 'updated_at']

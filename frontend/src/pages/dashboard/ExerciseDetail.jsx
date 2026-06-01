@@ -49,6 +49,10 @@ export default function ExerciseDetail() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!content.trim()) {
+            setSubmitError('الإجابة مطلوبة — لا يمكن التسليم بدون إجابة.');
+            return;
+        }
         setSubmitting(true);
         setSubmitError('');
         try {

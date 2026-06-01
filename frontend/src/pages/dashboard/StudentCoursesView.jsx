@@ -101,6 +101,10 @@ export default function StudentCoursesView() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!submissionContent.trim()) {
+            alert('يجب كتابة الإجابة قبل التسليم.');
+            return;
+        }
         if (!selectedAssignment) return;
 
         setSubmitting(true);
