@@ -9,6 +9,9 @@ export default function PasswordManagePage() {
     const [selectedRole, setSelectedRole] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [page, setPage] = useState(1);
+    const [count, setCount] = useState(0);
+    const [pageSize, setPageSize] = useState(10);
     
     // Modal state
     const [newPassword, setNewPassword] = useState('');
@@ -30,17 +33,27 @@ export default function PasswordManagePage() {
 
     useEffect(() => {
         fetchUsers();
-    }, [selectedRole, searchQuery]);
+    }, [page, selectedRole, searchQuery]);
 
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const params = {};
+            const params = { page };
             if (selectedRole) params.role = selectedRole;
             if (searchQuery) params.search = searchQuery;
             
             const res = await api.get('/auth/users/', { params });
-            setUsers(res.data.results || res.data);
+            const data = res.data;
+            if (data.results) {
+                setUsers(data.results);
+                setCount(data.count);
+                if (page === 1 && data.results.length > 0) {
+                    setPageSize(data.results.length);
+                }
+            } else {
+                setUsers(data);
+                setCount(data.length);
+            }
         } catch (err) {
             console.error('Error fetching users:', err);
         } finally {
@@ -139,14 +152,20 @@ export default function PasswordManagePage() {
                             placeholder="ابحث باسم المستخدم، الاسم الكامل، البريد، أو الرقم الجامعي..."
                             className="input-field w-full pr-10"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setPage(1);
+                            }}
                         />
                     </div>
                     <div>
                         <select
                             className="input-field w-full"
                             value={selectedRole}
-                            onChange={(e) => setSelectedRole(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedRole(e.target.value);
+                                setPage(1);
+                            }}
                         >
                             {roles.map((role) => (
                                 <option key={role.value} value={role.value}>
@@ -215,6 +234,27 @@ export default function PasswordManagePage() {
                             </tbody>
                         </table>
                     </div>
+                    {count > 0 && Math.ceil(count / pageSize) > 1 && (
+                        <div className="flex items-center justify-between mt-6 px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
+                            <button
+                                onClick={() => setPage(p => Math.max(p - 1, 1))}
+                                disabled={page === 1}
+                                className="btn-primary py-1.5 px-3 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                السابق
+                            </button>
+                            <span className="text-sm text-[var(--color-text-muted)]">
+                                الصفحة {page} من {Math.ceil(count / pageSize)} (مجموع {count} مستخدم)
+                            </span>
+                            <button
+                                onClick={() => setPage(p => Math.min(p + 1, Math.ceil(count / pageSize)))}
+                                disabled={page === Math.ceil(count / pageSize)}
+                                className="btn-primary py-1.5 px-3 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                التالي
+                            </button>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="glass-card p-12 text-center">

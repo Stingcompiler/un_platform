@@ -10,6 +10,9 @@ export default function UsersManage() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
+    const [page, setPage] = useState(1);
+    const [count, setCount] = useState(0);
+    const [pageSize, setPageSize] = useState(10);
     const [formData, setFormData] = useState({
         username: '',
         email: '',
@@ -28,12 +31,25 @@ export default function UsersManage() {
 
     useEffect(() => {
         fetchUsers();
-    }, []);
+    }, [page]);
 
     const fetchUsers = async () => {
         try {
-            const res = await api.get('/auth/users/');
-            setUsers(res.data.results || res.data);
+            setLoading(true);
+            const res = await api.get('/auth/users/', {
+                params: { page: page }
+            });
+            const data = res.data;
+            if (data.results) {
+                setUsers(data.results);
+                setCount(data.count);
+                if (page === 1 && data.results.length > 0) {
+                    setPageSize(data.results.length);
+                }
+            } else {
+                setUsers(data);
+                setCount(data.length);
+            }
         } catch (error) {
             console.error('Error fetching users:', error);
         } finally {
@@ -195,6 +211,27 @@ export default function UsersManage() {
                             </tbody>
                         </table>
                     </div>
+                    {count > 0 && Math.ceil(count / pageSize) > 1 && (
+                        <div className="flex items-center justify-between mt-6 px-4 py-3 bg-white/5 border border-white/10 rounded-xl">
+                            <button
+                                onClick={() => setPage(p => Math.max(p - 1, 1))}
+                                disabled={page === 1}
+                                className="btn-primary py-1.5 px-3 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                السابق
+                            </button>
+                            <span className="text-sm text-[var(--color-text-muted)]">
+                                الصفحة {page} من {Math.ceil(count / pageSize)} (مجموع {count} مستخدم)
+                            </span>
+                            <button
+                                onClick={() => setPage(p => Math.min(p + 1, Math.ceil(count / pageSize)))}
+                                disabled={page === Math.ceil(count / pageSize)}
+                                className="btn-primary py-1.5 px-3 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                التالي
+                            </button>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="glass-card p-12 text-center">
