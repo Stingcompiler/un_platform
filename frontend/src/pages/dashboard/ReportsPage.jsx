@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
-    BarChart2, BookOpen, Users, GraduationCap, Building2,
-    FileText, Layers, Calendar, ClipboardList, Send,
-    AlertCircle, CheckCircle, RefreshCw, Download,
-    FlaskConical, BookMarked, Target, Award, TrendingUp
+    BarChart2, BookOpen, Users, GraduationCap,
+    FileText, RefreshCw, ArrowLeft, ChevronLeft,
+    AlertCircle, CheckCircle, Building2, Layers,
+    Calendar, ClipboardList, Send, Download,
+    Target, Award, TrendingUp, FlaskConical, BookMarked
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
-/* ── Small helpers ───────────────────────────────────────────── */
+/* ── Small helpers (kept for sub-pages) ─────────────────────── */
 function Kpi({ icon: Icon, label, value, color = 'accent' }) {
     const cols = {
         accent: 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]/25 text-[var(--color-accent)]',
@@ -86,30 +87,17 @@ function SimpleTable({ cols, rows, emptyMsg = 'لا توجد بيانات' }) {
     );
 }
 
-/* ── Tab content sections ────────────────────────────────────── */
-function TabDeptStats({ report, deptReport }) {
+/* ── Sub-page content components ──────────────────────────── */
+
+function SubpageCourses({ report, deptReport }) {
+    const rows = deptReport?.course_details || [];
     const kpis = report?.kpis || {};
-    const ds = deptReport?.department_stats || {};
     const cs = deptReport?.course_stats || {};
-    const ls = deptReport?.lecture_stats || {};
     return (
-        <div className="space-y-8">
-            <div>
-                <SectionTitle icon={Target} title="مؤشرات الأداء الرئيسية" sub="نظرة عامة شاملة" />
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <Kpi icon={Building2} label="الأقسام" value={kpis.total_departments} color="accent" />
-                    <Kpi icon={BookOpen} label="إجمالي المواد" value={kpis.total_subjects} color="blue" />
-                    <Kpi icon={CheckCircle} label="مواد مُعيّنة" value={kpis.assigned_subjects} color="green" />
-                    <Kpi icon={AlertCircle} label="مواد غير مُعيّنة" value={kpis.unassigned_subjects} color="red" />
-                    <Kpi icon={Users} label="الأساتذة" value={ds.instructors} color="purple" />
-                    <Kpi icon={GraduationCap} label="الطلاب" value={ds.total_students} color="teal" />
-                    <Kpi icon={FileText} label="المحاضرات" value={kpis.total_lectures} color="orange" />
-                    <Kpi icon={ClipboardList} label="الواجبات" value={kpis.total_assignments} color="accent" />
-                </div>
-            </div>
+        <div className="space-y-6">
             <div className="grid sm:grid-cols-3 gap-4">
                 {[
-                    { label: 'إجمالي المواد', value: cs.total, color: 'text-blue-400' },
+                    { label: 'إجمالي المواد', value: cs.total || kpis.total_subjects, color: 'text-blue-400' },
                     { label: 'مواد لها محاضرات', value: cs.with_lectures, color: 'text-green-400' },
                     { label: 'مواد بدون محاضرات', value: cs.without_lectures, color: 'text-red-400' },
                 ].map((item, i) => (
@@ -119,14 +107,6 @@ function TabDeptStats({ report, deptReport }) {
                     </div>
                 ))}
             </div>
-        </div>
-    );
-}
-
-function TabCourse({ deptReport }) {
-    const rows = deptReport?.course_details || [];
-    return (
-        <div>
             <SectionTitle icon={BookOpen} title="تفاصيل المواد" sub={`${rows.length} مادة`} />
             <div className="glass-card overflow-hidden">
                 <SimpleTable
@@ -146,84 +126,65 @@ function TabCourse({ deptReport }) {
     );
 }
 
-function TabCourseWithTeacher({ deptReport }) {
-    const rows = (deptReport?.course_details || []).filter(r => r.supervisor && r.supervisor !== '—');
-    return (
-        <div>
-            <SectionTitle icon={CheckCircle} title="المواد التي لها مدرس" sub={`${rows.length} مادة مُعيّن لها مدرس`} />
-            <div className="glass-card overflow-hidden">
-                <SimpleTable
-                    cols={[
-                        { key: 'name', label: 'المادة', render: r => <span>{r.name} <span className="text-xs text-[var(--color-accent)]">({r.code})</span></span> },
-                        { key: 'year', label: 'السنة' },
-                        { key: 'semester', label: 'الفصل', render: r => `الفصل ${r.semester}` },
-                        { key: 'supervisor', label: 'المدرس', render: r => <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-green-400" />{r.supervisor}</span> },
-                        { key: 'lecture_count', label: 'المحاضرات' },
-                    ]}
-                    rows={rows}
-                    emptyMsg="لا توجد مواد مُعيّن لها مدرس"
-                />
-            </div>
-        </div>
-    );
-}
-
-function TabCourseNoTeacher({ deptReport }) {
-    const rows = (deptReport?.course_details || []).filter(r => !r.supervisor || r.supervisor === '—');
-    return (
-        <div>
-            <SectionTitle icon={AlertCircle} title="المواد بدون مدرس" sub={`${rows.length} مادة لم يُعيّن لها مدرس بعد`} />
-            <div className="glass-card overflow-hidden">
-                <SimpleTable
-                    cols={[
-                        { key: 'name', label: 'المادة', render: r => <span>{r.name} <span className="text-xs text-[var(--color-accent)]">({r.code})</span></span> },
-                        { key: 'year', label: 'السنة' },
-                        { key: 'semester', label: 'الفصل', render: r => `الفصل ${r.semester}` },
-                        { key: 'lecture_count', label: 'المحاضرات' },
-                    ]}
-                    rows={rows}
-                    emptyMsg="جميع المواد لديها مدرسون — ممتاز!"
-                />
-            </div>
-        </div>
-    );
-}
-
-function TabLectures({ deptReport, report }) {
+function SubpageLectures({ report, deptReport }) {
     const ls = deptReport?.lecture_stats || {};
     const lb = report?.leaderboards || {};
     return (
         <div className="space-y-6">
-            <div>
-                <SectionTitle icon={FileText} title="إحصائيات المحاضرات" />
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <Kpi icon={FileText} label="إجمالي المحاضرات" value={ls.total} color="purple" />
-                    <Kpi icon={Download} label="الملفات المرفوعة" value={ls.total_files} color="blue" />
-                    <Kpi icon={TrendingUp} label="آخر 7 أيام" value={ls.recent_7d} color="green" />
-                    <Kpi icon={Calendar} label="آخر 30 يوم" value={ls.recent_30d} color="orange" />
-                </div>
+            <SectionTitle icon={FileText} title="إحصائيات المحاضرات" sub="نشاط رفع المحاضرات وتفاصيلها" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                <Kpi icon={FileText} label="إجمالي المحاضرات" value={ls.total} color="purple" />
+                <Kpi icon={Download} label="الملفات المرفوعة" value={ls.total_files} color="blue" />
+                <Kpi icon={TrendingUp} label="آخر 7 أيام" value={ls.recent_7d} color="green" />
+                <Kpi icon={Calendar} label="آخر 30 يوم" value={ls.recent_30d} color="orange" />
             </div>
-            <div>
-                <SectionTitle icon={Award} title="المواد الأكثر نشاطاً" sub="ترتيب حسب عدد المحاضرات" />
-                <div className="glass-card overflow-hidden">
-                    <SimpleTable
-                        cols={[
-                            { key: 'name', label: 'المادة', render: r => <span>{r.name} <span className="text-xs text-[var(--color-accent)]">({r.code})</span></span> },
-                            { key: 'lectures_count', label: 'المحاضرات' },
-                            { key: 'department', label: 'القسم' },
-                            { key: 'professor', label: 'المدرس' },
-                            { key: 'assignments_count', label: 'الواجبات' },
-                        ]}
-                        rows={lb.advanced_subjects}
-                        emptyMsg="لا توجد بيانات"
-                    />
-                </div>
+            <SectionTitle icon={Award} title="المواد الأكثر نشاطاً" sub="ترتيب حسب عدد المحاضرات" />
+            <div className="glass-card overflow-hidden">
+                <SimpleTable
+                    cols={[
+                        { key: 'name', label: 'المادة', render: r => <span>{r.name} <span className="text-xs text-[var(--color-accent)]">({r.code})</span></span> },
+                        { key: 'lectures_count', label: 'المحاضرات' },
+                        { key: 'department', label: 'القسم' },
+                        { key: 'professor', label: 'المدرس' },
+                        { key: 'assignments_count', label: 'الواجبات' },
+                    ]}
+                    rows={lb.advanced_subjects}
+                    emptyMsg="لا توجد بيانات"
+                />
             </div>
         </div>
     );
 }
 
-function TabStudents({ report }) {
+function SubpageTeachers({ report }) {
+    const lb = report?.leaderboards || {};
+    const kpis = report?.kpis || {};
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <Kpi icon={ClipboardList} label="إجمالي الواجبات" value={kpis.total_assignments} color="orange" />
+                <Kpi icon={Send} label="التسليمات" value={kpis.total_submissions} color="teal" />
+                <Kpi icon={CheckCircle} label="المواد المُعيّنة" value={kpis.assigned_subjects} color="green" />
+            </div>
+            <SectionTitle icon={Award} title="الأساتذة الأكثر نشاطاً" sub="ترتيب حسب عدد الواجبات والتصحيحات" />
+            <div className="glass-card overflow-hidden">
+                <SimpleTable
+                    cols={[
+                        { key: 'name', label: 'الأستاذ' },
+                        { key: 'subjects_count', label: 'المواد' },
+                        { key: 'assignments_count', label: 'الواجبات' },
+                        { key: 'graded_count', label: 'التصحيحات' },
+                        { key: 'lectures_count', label: 'المحاضرات' },
+                    ]}
+                    rows={lb.active_professors}
+                    emptyMsg="لا يوجد بيانات"
+                />
+            </div>
+        </div>
+    );
+}
+
+function SubpageStudents({ report }) {
     const dist = report?.student_distribution || {};
     const maxDept = Math.max(...(dist.per_department || []).map(d => d.count), 1);
     const maxLvl  = Math.max(...(dist.per_level    || []).map(d => d.count), 1);
@@ -249,67 +210,69 @@ function TabStudents({ report }) {
     );
 }
 
-function TabExercises({ report }) {
-    const kpis = report?.kpis || {};
-    const lb = report?.leaderboards || {};
-    return (
-        <div className="space-y-6">
-            <div>
-                <SectionTitle icon={ClipboardList} title="إحصائيات التمارين والواجبات" />
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    <Kpi icon={ClipboardList} label="إجمالي الواجبات" value={kpis.total_assignments} color="orange" />
-                    <Kpi icon={Send} label="التسليمات" value={kpis.total_submissions} color="teal" />
-                    <Kpi icon={CheckCircle} label="المواد المُعيّنة" value={kpis.assigned_subjects} color="green" />
-                </div>
-            </div>
-            <div>
-                <SectionTitle icon={Award} title="الأساتذة الأكثر نشاطاً" sub="ترتيب حسب عدد الواجبات والتصحيحات" />
-                <div className="glass-card overflow-hidden">
-                    <SimpleTable
-                        cols={[
-                            { key: 'name', label: 'الأستاذ' },
-                            { key: 'subjects_count', label: 'المواد' },
-                            { key: 'assignments_count', label: 'الواجبات' },
-                            { key: 'graded_count', label: 'التصحيحات' },
-                            { key: 'lectures_count', label: 'المحاضرات' },
-                        ]}
-                        rows={lb.active_professors}
-                        emptyMsg="لا يوجد بيانات"
-                    />
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ── Main page ───────────────────────────────────────────────── */
-const TABS = [
-    { id: 'dept',        label: 'إحصائيات القسم',       icon: Building2 },
-    { id: 'course',      label: 'المواد',                icon: BookOpen },
-    { id: 'with',        label: 'مواد لها مدرس',         icon: CheckCircle },
-    { id: 'without',     label: 'مواد بدون مدرس',        icon: AlertCircle },
-    { id: 'lectures',    label: 'المحاضرات',             icon: FileText },
-    { id: 'students',    label: 'الطلاب',                icon: GraduationCap },
-    { id: 'exercises',   label: 'التمارين',              icon: ClipboardList },
+/* ── Report link card definitions ──────────────────────────── */
+const REPORT_CARDS = [
+    {
+        id: 'courses',
+        label: 'المواد',
+        icon: BookOpen,
+        description: 'تقارير تفصيلية عن المواد الدراسية',
+        gradient: 'from-emerald-500/20 to-green-600/10',
+        borderColor: 'border-emerald-500/30',
+        iconColor: 'text-emerald-400',
+        bgIcon: 'bg-emerald-500/15',
+    },
+    {
+        id: 'lectures',
+        label: 'سير المحاضرات',
+        icon: FileText,
+        description: 'إحصائيات ونشاط المحاضرات',
+        gradient: 'from-blue-500/20 to-indigo-600/10',
+        borderColor: 'border-blue-500/30',
+        iconColor: 'text-blue-400',
+        bgIcon: 'bg-blue-500/15',
+    },
+    {
+        id: 'teachers',
+        label: 'الاساتذة',
+        icon: Users,
+        description: 'تقارير أداء ونشاط الأساتذة',
+        gradient: 'from-purple-500/20 to-violet-600/10',
+        borderColor: 'border-purple-500/30',
+        iconColor: 'text-purple-400',
+        bgIcon: 'bg-purple-500/15',
+    },
+    {
+        id: 'students',
+        label: 'الطلاب',
+        icon: GraduationCap,
+        description: 'إحصائيات وتوزيع الطلاب',
+        gradient: 'from-amber-500/20 to-orange-600/10',
+        borderColor: 'border-amber-500/30',
+        iconColor: 'text-amber-400',
+        bgIcon: 'bg-amber-500/15',
+    },
 ];
 
+/* ── Main page ───────────────────────────────────────────────── */
 export default function ReportsPage() {
     const { user } = useAuth();
     const isAdmin   = user?.role === 'system_manager';
     const isManager = ['department_manager', 'supervisor'].includes(user?.role);
 
-    const [activeTab, setActiveTab] = useState('dept');
-    const [report, setReport]       = useState(null);
+    const [activePage, setActivePage] = useState(null); // null = index / link cards
+    const [report, setReport]         = useState(null);
     const [deptReport, setDeptReport] = useState(null);
-    const [loading, setLoading]     = useState(true);
-    const [error, setError]         = useState('');
+    const [loading, setLoading]       = useState(false);
+    const [error, setError]           = useState('');
 
-    const [selectedDept, setSelectedDept]   = useState('');
-    const [selectedLevel, setSelectedLevel] = useState('');
+    // Filters (used inside sub-pages)
+    const [selectedDept, setSelectedDept]       = useState('');
+    const [selectedLevel, setSelectedLevel]     = useState('');
     const [selectedSemester, setSelectedSemester] = useState('');
     const [departments, setDepartments] = useState([]);
 
-    const load = useCallback(async () => {
+    const load = async () => {
         setLoading(true); setError('');
         try {
             const params = new URLSearchParams();
@@ -328,26 +291,98 @@ export default function ReportsPage() {
         } finally {
             setLoading(false);
         }
-    }, [selectedDept, selectedLevel, selectedSemester]);
+    };
 
     useEffect(() => {
         if (isAdmin) api.get('/academic/departments/').then(r => setDepartments(r.data.results || r.data)).catch(() => {});
-        load();
-    }, [isAdmin, load]);
+    }, [isAdmin]);
 
-    /* ── Render ── */
+    // Load data when a sub-page is opened
+    useEffect(() => {
+        if (activePage) load();
+    }, [activePage, selectedDept, selectedLevel, selectedSemester]);
+
+    /* ── Render: Index (link cards) ── */
+    if (!activePage) {
+        return (
+            <div>
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent)]/5 border border-[var(--color-accent)]/30 flex items-center justify-center">
+                            <BarChart2 className="w-6 h-6 text-[var(--color-accent)]" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold">تقارير القسم</h1>
+                            <p className="text-[var(--color-text-muted)]">
+                                تحليلات تفصيلية وإحصائيات أكاديمية — <span className="text-[var(--color-accent)]">{user?.department?.name_ar || 'جميع الأقسام'}</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Dept banner for managers */}
+                {isManager && user?.department && (
+                    <div className="mb-5 px-4 py-2 rounded-lg bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 text-sm flex items-center gap-2">
+                        <span className="text-[var(--color-accent)] font-medium">القسم:</span>
+                        <span>{user.department.name_ar}</span>
+                        <span className="text-[var(--color-text-muted)] text-xs mr-auto">البيانات مقيدة بقسمك فقط</span>
+                    </div>
+                )}
+
+                {/* Report Link Cards */}
+                <div className="glass-card p-6 sm:p-8">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                        {REPORT_CARDS.map(card => (
+                            <button
+                                key={card.id}
+                                onClick={() => setActivePage(card.id)}
+                                className={`group relative overflow-hidden rounded-2xl border-2 ${card.borderColor} bg-gradient-to-br ${card.gradient} p-6 sm:p-8 text-center transition-all duration-300 hover:scale-[1.03] hover:shadow-lg hover:shadow-black/20 active:scale-[0.98] cursor-pointer`}
+                            >
+                                {/* Background decoration */}
+                                <div className="absolute -top-6 -left-6 w-24 h-24 rounded-full bg-white/[0.03] group-hover:bg-white/[0.06] transition-colors duration-300" />
+                                <div className="absolute -bottom-4 -right-4 w-16 h-16 rounded-full bg-white/[0.02] group-hover:bg-white/[0.04] transition-colors duration-300" />
+
+                                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl ${card.bgIcon} flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                                    <card.icon className={`w-7 h-7 sm:w-8 sm:h-8 ${card.iconColor}`} />
+                                </div>
+                                <h3 className="text-lg sm:text-xl font-bold text-white mb-1">{card.label}</h3>
+                                <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">{card.description}</p>
+
+                                {/* Arrow indicator */}
+                                <div className={`mt-3 flex items-center justify-center gap-1 ${card.iconColor} text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300`}>
+                                    <span>عرض التقرير</span>
+                                    <ChevronLeft className="w-3.5 h-3.5" />
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    /* ── Render: Sub-page ── */
+    const currentCard = REPORT_CARDS.find(c => c.id === activePage);
+
     return (
         <div>
-            {/* Header */}
+            {/* Header with back button */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
                 <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-accent)]/20 to-[var(--color-accent)]/5 border border-[var(--color-accent)]/30 flex items-center justify-center">
-                        <BarChart2 className="w-6 h-6 text-[var(--color-accent)]" />
+                    <button
+                        onClick={() => setActivePage(null)}
+                        className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+                    >
+                        <ArrowLeft className="w-5 h-5 text-[var(--color-text-muted)]" />
+                    </button>
+                    <div className={`w-12 h-12 rounded-xl ${currentCard?.bgIcon || 'bg-[var(--color-accent)]/15'} flex items-center justify-center`}>
+                        {currentCard && <currentCard.icon className={`w-6 h-6 ${currentCard.iconColor}`} />}
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold">التقارير الشاملة</h1>
-                        <p className="text-[var(--color-text-muted)]">
-                            تحليلات تفصيلية — <span className="text-[var(--color-accent)]">{deptReport?.department?.name || 'جميع الأقسام'}</span>
+                        <h1 className="text-2xl font-bold">{currentCard?.label || 'التقرير'}</h1>
+                        <p className="text-[var(--color-text-muted)] text-sm">
+                            {currentCard?.description} — <span className="text-[var(--color-accent)]">{deptReport?.department?.name || user?.department?.name_ar || 'جميع الأقسام'}</span>
                         </p>
                     </div>
                 </div>
@@ -395,36 +430,13 @@ export default function ReportsPage() {
                 </div>
             )}
 
+            {/* Sub-page content */}
             {!loading && !error && report && (
                 <>
-                    {/* Tab bar */}
-                    <div className="flex flex-wrap gap-1 mb-6 p-1 glass-card rounded-xl">
-                        {TABS.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap ${
-                                    activeTab === tab.id
-                                        ? 'bg-[var(--color-accent)] text-[var(--color-bg)] shadow-md'
-                                        : 'text-[var(--color-text-muted)] hover:text-white hover:bg-white/5'
-                                }`}
-                            >
-                                <tab.icon className="w-3.5 h-3.5" />
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Tab content */}
-                    <div>
-                        {activeTab === 'dept'     && <TabDeptStats report={report} deptReport={deptReport} />}
-                        {activeTab === 'course'   && <TabCourse deptReport={deptReport} />}
-                        {activeTab === 'with'     && <TabCourseWithTeacher deptReport={deptReport} />}
-                        {activeTab === 'without'  && <TabCourseNoTeacher deptReport={deptReport} />}
-                        {activeTab === 'lectures' && <TabLectures deptReport={deptReport} report={report} />}
-                        {activeTab === 'students' && <TabStudents report={report} />}
-                        {activeTab === 'exercises'&& <TabExercises report={report} />}
-                    </div>
+                    {activePage === 'courses'  && <SubpageCourses report={report} deptReport={deptReport} />}
+                    {activePage === 'lectures' && <SubpageLectures report={report} deptReport={deptReport} />}
+                    {activePage === 'teachers' && <SubpageTeachers report={report} />}
+                    {activePage === 'students' && <SubpageStudents report={report} />}
                 </>
             )}
         </div>

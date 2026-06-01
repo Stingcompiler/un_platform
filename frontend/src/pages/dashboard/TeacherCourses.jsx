@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Plus, Edit, Trash2, X, Save, Video, FileText, Eye, Users, Download, User, Clock, ChevronDown } from 'lucide-react';
+import { BookOpen, Plus, Edit, Trash2, X, Save, Video, FileText, Eye, Users, Download, User, Clock, ChevronDown, Filter, Building2, Calendar } from 'lucide-react';
 import api from '../../services/api';
 
 export default function TeacherCourses() {
@@ -19,12 +19,27 @@ export default function TeacherCourses() {
     const [submissions, setSubmissions] = useState([]);
     const [editingItem, setEditingItem] = useState(null);
 
+    // Filters
+    const [departments, setDepartments] = useState([]);
+    const [filterDept, setFilterDept] = useState('');
+    const [filterSemester, setFilterSemester] = useState('');
+
     const isTA = user?.role === 'ta';
     const canDelete = ['system_manager', 'department_manager'].includes(user?.role);
 
     useEffect(() => {
         fetchCourses();
+        fetchDepartments();
     }, []);
+
+    const fetchDepartments = async () => {
+        try {
+            const res = await api.get('/academic/departments/');
+            setDepartments(res.data.results || res.data);
+        } catch (error) {
+            console.error('Error fetching departments:', error);
+        }
+    };
 
     useEffect(() => {
         if (selectedCourse) {
@@ -47,6 +62,24 @@ export default function TeacherCourses() {
             setLoading(false);
         }
     };
+
+    // Filter courses client-side
+    const filteredCourses = courses.filter(c => {
+        if (filterDept && String(c.department) !== filterDept && String(c.department_id) !== filterDept) return false;
+        if (filterSemester && String(c.semester) !== filterSemester) return false;
+        return true;
+    });
+
+    // Reset selectedCourse when filters change to first matching course
+    useEffect(() => {
+        if (filteredCourses.length > 0) {
+            if (!selectedCourse || !filteredCourses.find(c => c.id === selectedCourse.id)) {
+                setSelectedCourse(filteredCourses[0]);
+            }
+        } else {
+            setSelectedCourse(null);
+        }
+    }, [filterDept, filterSemester, courses]);
 
     const fetchLectures = async () => {
         try {
@@ -116,13 +149,62 @@ export default function TeacherCourses() {
                 </p>
             </div>
 
-            {courses.length > 0 ? (
+            {/* Filters */}
+            <div className="glass-card p-4 mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                    <Filter className="w-4 h-4 text-[var(--color-accent)]" />
+                    <span className="text-sm font-medium text-[var(--color-text-muted)]">تصفية المواد</span>
+                    {(filterDept || filterSemester) && (
+                        <button
+                            onClick={() => { setFilterDept(''); setFilterSemester(''); }}
+                            className="mr-auto text-xs text-[var(--color-accent)] hover:underline flex items-center gap-1"
+                        >
+                            <X className="w-3 h-3" /> إزالة الفلاتر
+                        </button>
+                    )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="relative">
+                        <Building2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)] pointer-events-none" />
+                        <select
+                            className="input-field w-full pr-10"
+                            value={filterDept}
+                            onChange={e => setFilterDept(e.target.value)}
+                        >
+                            <option value="">جميع الأقسام</option>
+                            {departments.map(d => (
+                                <option key={d.id} value={d.id}>{d.name_ar}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="relative">
+                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)] pointer-events-none" />
+                        <select
+                            className="input-field w-full pr-10"
+                            value={filterSemester}
+                            onChange={e => setFilterSemester(e.target.value)}
+                        >
+                            <option value="">جميع الفصول</option>
+                            {[1,2,3,4,5,6,7,8,9,10].map(s => (
+                                <option key={s} value={s}>الفصل {s}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+                {(filterDept || filterSemester) && (
+                    <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+                        عرض {filteredCourses.length} من {courses.length} مادة
+                    </p>
+                )}
+            </div>
+
+            {filteredCourses.length > 0 ? (
                 <div className="grid lg:grid-cols-[280px,1fr] gap-6">
                     {/* Course List — Desktop Sidebar */}
                     <div className="hidden lg:block glass-card p-4">
-                        <h3 className="font-semibold mb-4">المواد</h3>
+                        <h3 className="font-semibold mb-4">المواد ({filteredCourses.length})</h3>
                         <div className="space-y-2">
-                            {courses.map((course) => (
+                            {filteredCourses.map((course) => (
                                 <button
                                     key={course.id}
                                     onClick={() => setSelectedCourse(course)}
@@ -146,11 +228,11 @@ export default function TeacherCourses() {
                                 className="input-field w-full appearance-none pr-4 pl-10"
                                 value={selectedCourse?.id || ''}
                                 onChange={(e) => {
-                                    const c = courses.find(c => String(c.id) === e.target.value);
+                                    const c = filteredCourses.find(c => String(c.id) === e.target.value);
                                     if (c) setSelectedCourse(c);
                                 }}
                             >
-                                {courses.map((course) => (
+                                {filteredCourses.map((course) => (
                                     <option key={course.id} value={course.id}>
                                         {course.name_ar} — {course.code}
                                     </option>
@@ -415,8 +497,22 @@ export default function TeacherCourses() {
             ) : (
                 <div className="glass-card p-12 text-center">
                     <BookOpen className="w-16 h-16 text-[var(--color-text-muted)] mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold mb-2">لا توجد مواد مسندة</h3>
-                    <p className="text-[var(--color-text-muted)]">لم يتم إسناد أي مواد إليك بعد</p>
+                    <h3 className="text-xl font-semibold mb-2">
+                        {(filterDept || filterSemester) ? 'لا توجد مواد مطابقة للفلتر' : 'لا توجد مواد مسندة'}
+                    </h3>
+                    <p className="text-[var(--color-text-muted)]">
+                        {(filterDept || filterSemester)
+                            ? 'جرّب تغيير معايير التصفية لعرض المواد المتاحة'
+                            : 'لم يتم إسناد أي مواد إليك بعد'}
+                    </p>
+                    {(filterDept || filterSemester) && (
+                        <button
+                            onClick={() => { setFilterDept(''); setFilterSemester(''); }}
+                            className="btn-accent mt-4"
+                        >
+                            إزالة الفلاتر
+                        </button>
+                    )}
                 </div>
             )}
 
