@@ -27,6 +27,7 @@ export default function UsersManage() {
         { value: 'supervisor', label: 'مشرف القسم' },
         { value: 'teacher', label: 'مدرس' },
         { value: 'ta', label: 'معيد' },
+        { value: 'event_manager', label: 'مسؤول الفعاليات' },
     ];
 
     useEffect(() => {
@@ -128,6 +129,7 @@ export default function UsersManage() {
             supervisor: 'var(--color-primary)',
             teacher: 'var(--color-success)',
             ta: 'var(--color-text-muted)',
+            event_manager: 'var(--color-primary-light)',
         };
         return colors[role] || 'var(--color-text-muted)';
     };

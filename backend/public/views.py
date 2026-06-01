@@ -38,11 +38,17 @@ class PublicEventDetailView(APIView):
             return Response({'error': 'الفعالية غير موجودة'}, status=status.HTTP_404_NOT_FOUND)
 
 
+class IsEventManagerOrAdmin(permissions.BasePermission):
+    """Permission for event managers and system admins"""
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and request.user.role in ['system_manager', 'department_manager', 'event_manager']
+
+
 class EventViewSet(viewsets.ModelViewSet):
     """ViewSet for Event management (admin)"""
     queryset = Event.objects.all()
     serializer_class = EventSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsEventManagerOrAdmin]
     
     def get_queryset(self):
         queryset = super().get_queryset()

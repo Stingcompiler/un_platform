@@ -515,6 +515,10 @@ class DashboardStatsView(APIView):
                 ).count(),
                 'lectures': Lecture.objects.filter(course_id__in=my_courses).count(),
             }
+        elif user.role == 'event_manager':
+            stats = {
+                'events': Event.objects.count(),
+            }
         elif user.role == 'student':
             # Student stats
             if user.university_student:

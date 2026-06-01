@@ -103,6 +103,11 @@ export default function Dashboard() {
                     { path: '/dashboard/lectures', icon: FileText, label: 'المحاضرات' },
                     { path: '/dashboard/results', icon: Award, label: 'النتائج' },
                 ];
+            case 'event_manager':
+                return [
+                    ...baseItems,
+                    { path: '/dashboard/events', icon: Calendar, label: 'الفعاليات' },
+                ];
             default:
                 return baseItems;
         }
@@ -118,6 +123,7 @@ export default function Dashboard() {
             teacher: 'مدرس',
             ta: 'معيد',
             student: 'طالب',
+            event_manager: 'مسؤول الفعاليات',
         };
         return labels[user?.role] || 'مستخدم';
     };

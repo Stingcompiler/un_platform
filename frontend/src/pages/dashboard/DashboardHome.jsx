@@ -58,6 +58,10 @@ export default function DashboardHome() {
                     { icon: FileText, label: 'الواجبات', value: stats.assignments || 0, color: 'success' },
                     { icon: TrendingUp, label: 'تسليمات معلقة', value: stats.pending_submissions || 0, color: 'accent' },
                 ];
+            case 'event_manager':
+                return [
+                    { icon: Calendar, label: 'الفعاليات', value: stats.events || 0, color: 'accent' },
+                ];
             default: // system_manager
                 return [
                     { icon: BookOpen, label: 'الأقسام', value: stats.departments || 0, color: 'accent' },
@@ -135,6 +139,11 @@ export default function DashboardHome() {
                         <>
                             <Link to="/dashboard/courses" className="btn-primary justify-center">إدارة المواد</Link>
                             <Link to="/dashboard/instructors" className="btn-accent justify-center">تعيين مدرسين</Link>
+                        </>
+                    )}
+                    {user?.role === 'event_manager' && (
+                        <>
+                            <Link to="/dashboard/events" className="btn-accent justify-center">إدارة الفعاليات</Link>
                         </>
                     )}
                 </div>
