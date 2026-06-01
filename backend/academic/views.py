@@ -97,6 +97,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
+        
+        # Public list and retrieve actions should show all departments to everyone
+        if self.action in ['list', 'retrieve']:
+            return queryset
+            
         if user.is_authenticated:
             # Department manager can only see their own department
             if user.role == 'department_manager':
@@ -134,7 +139,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsDepartmentLevel()]
-        return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -150,30 +155,31 @@ class CourseViewSet(viewsets.ModelViewSet):
         if year:
             queryset = queryset.filter(academic_year=year)
         
-        # Department manager can only see their department's courses
-        if user.role == 'department_manager':
-            dept = get_user_department(user)
-            if dept:
-                queryset = queryset.filter(department=dept)
-            else:
-                queryset = queryset.none()
-        # Supervisor can only see their department's courses
-        elif user.role == 'supervisor':
-            dept = get_user_department(user)
-            if dept:
-                queryset = queryset.filter(department=dept)
-            else:
-                queryset = queryset.none()
-        # Teachers and TAs can only see courses they are assigned to
-        elif user.role in ['teacher', 'ta']:
-            assigned_course_ids = CourseInstructor.objects.filter(user=user).values_list('course_id', flat=True)
-            queryset = queryset.filter(id__in=assigned_course_ids)
-        # Students can only see courses for their department and year
-        elif user.role == 'student' and user.university_student:
-            queryset = queryset.filter(
-                department_id=user.university_student.department_id,
-                academic_year=user.university_student.year
-            )
+        if user.is_authenticated:
+            # Department manager can only see their department's courses
+            if user.role == 'department_manager':
+                dept = get_user_department(user)
+                if dept:
+                    queryset = queryset.filter(department=dept)
+                else:
+                    queryset = queryset.none()
+            # Supervisor can only see their department's courses
+            elif user.role == 'supervisor':
+                dept = get_user_department(user)
+                if dept:
+                    queryset = queryset.filter(department=dept)
+                else:
+                    queryset = queryset.none()
+            # Teachers and TAs can only see courses they are assigned to
+            elif user.role in ['teacher', 'ta']:
+                assigned_course_ids = CourseInstructor.objects.filter(user=user).values_list('course_id', flat=True)
+                queryset = queryset.filter(id__in=assigned_course_ids)
+            # Students can only see courses for their department and year
+            elif user.role == 'student' and user.university_student:
+                queryset = queryset.filter(
+                    department_id=user.university_student.department_id,
+                    academic_year=user.university_student.year
+                )
         
         return queryset
     

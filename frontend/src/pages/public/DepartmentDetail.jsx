@@ -17,14 +17,35 @@ export default function DepartmentDetail() {
     const fetchDepartmentAndCourses = async () => {
         try {
             setLoading(true);
-            const [deptRes, coursesRes] = await Promise.all([
-                api.get(`/academic/departments/${id}/`),
-                api.get(`/academic/courses/?department=${id}`)
-            ]);
-            setDepartment(deptRes.data);
-            setCourses(coursesRes.data.results || coursesRes.data);
+
+            // 1. Fetch Department Details
+            let deptData = null;
+            try {
+                const deptRes = await api.get(`/academic/departments/${id}/`);
+                deptData = deptRes.data;
+            } catch (err) {
+                console.error('Error fetching department details:', err);
+            }
+
+            if (!deptData) {
+                setDepartment(null);
+                setLoading(false);
+                return;
+            }
+
+            setDepartment(deptData);
+
+            // 2. Fetch Courses
+            try {
+                const coursesRes = await api.get(`/academic/courses/?department=${id}`);
+                setCourses(coursesRes.data.results || coursesRes.data || []);
+            } catch (err) {
+                console.error('Error fetching courses:', err);
+                setCourses([]);
+            }
+
         } catch (err) {
-            console.error('Error fetching department details:', err);
+            console.error('Error in fetchDepartmentAndCourses:', err);
         } finally {
             setLoading(false);
         }
@@ -80,7 +101,7 @@ export default function DepartmentDetail() {
                                 {department.name}
                             </p>
                         </div>
-                        <div className="glass-card px-6 py-4 shrink-0 flex items-center gap-4 bg-white/5 border-white/10">
+                        {/* <div className="glass-card px-6 py-4 shrink-0 flex items-center gap-4 bg-white/5 border-white/10">
                             <div className="w-12 h-12 rounded-xl bg-[var(--color-accent)]/10 flex items-center justify-center">
                                 <Layers className="w-6 h-6 text-[var(--color-accent)]" />
                             </div>
@@ -88,7 +109,7 @@ export default function DepartmentDetail() {
                                 <div className="text-2xl font-bold text-white">{courses.length}</div>
                                 <div className="text-xs text-[var(--color-text-muted)]">مادة دراسية معتمدة</div>
                             </div>
-                        </div>
+                        </div> */}
                     </div>
                 </div>
             </section>
@@ -109,7 +130,7 @@ export default function DepartmentDetail() {
 
                             {/* Courses List Section */}
                             <div>
-                                <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                                {/* <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                                     <div>
                                         <h2 className="text-2xl font-bold">المواد الدراسية</h2>
                                         <p className="text-sm text-[var(--color-text-muted)] mt-1">المواد والمناهج المعتمدة في هذا القسم</p>
@@ -123,9 +144,9 @@ export default function DepartmentDetail() {
                                             onChange={(e) => setCourseSearch(e.target.value)}
                                         />
                                     </div>
-                                </div>
+                                </div> */}
 
-                                {filteredCourses.length > 0 ? (
+                                {/* {filteredCourses.length > 0 ? (
                                     <div className="grid sm:grid-cols-2 gap-4">
                                         {filteredCourses.map((c) => (
                                             <div key={c.id} className="glass-card p-5 card-hover border border-white/5 hover:border-[var(--color-accent)]/20 transition-all flex flex-col justify-between">
@@ -153,7 +174,7 @@ export default function DepartmentDetail() {
                                         <BookOpen className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-4" />
                                         <p className="text-[var(--color-text-muted)]">لا توجد مواد مطابقة للبحث حالياً.</p>
                                     </div>
-                                )}
+                                )} */}
                             </div>
                         </div>
 
@@ -162,7 +183,7 @@ export default function DepartmentDetail() {
                             {/* Management details */}
                             <div className="glass-card p-6">
                                 <h3 className="font-bold text-lg mb-4 pb-2 border-b border-white/10">إدارة القسم</h3>
-                                
+
                                 <div className="space-y-4">
                                     <div className="flex gap-3">
                                         <div className="w-10 h-10 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center shrink-0">
@@ -171,9 +192,9 @@ export default function DepartmentDetail() {
                                         <div>
                                             <div className="text-xs text-[var(--color-text-muted)]">رئيس القسم</div>
                                             <div className="font-semibold text-sm text-white">{department.department_manager_name || 'لم يحدد بعد'}</div>
-                                            {department.department_manager_details?.email && (
+                                            {/* {department.department_manager_details?.email && (
                                                 <div className="text-xs text-[var(--color-text-muted)]">{department.department_manager_details.email}</div>
-                                            )}
+                                            )} */}
                                         </div>
                                     </div>
 
@@ -184,16 +205,16 @@ export default function DepartmentDetail() {
                                         <div>
                                             <div className="text-xs text-[var(--color-text-muted)]">مشرف القسم</div>
                                             <div className="font-semibold text-sm text-white">{department.supervisor_details?.full_name_ar || 'لم يحدد بعد'}</div>
-                                            {department.supervisor_details?.email && (
+                                            {/* {department.supervisor_details?.email && (
                                                 <div className="text-xs text-[var(--color-text-muted)]">{department.supervisor_details.email}</div>
-                                            )}
+                                            )} */}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Additional Information */}
-                            <div className="glass-card p-6 bg-gradient-to-br from-white/[0.02] to-white/[0.01]">
+                            {/* <div className="glass-card p-6 bg-gradient-to-br from-white/[0.02] to-white/[0.01]">
                                 <h3 className="font-bold text-lg mb-4 pb-2 border-b border-white/10">معلومات إضافية</h3>
                                 <div className="space-y-3 text-sm">
                                     <div className="flex justify-between">
@@ -209,7 +230,7 @@ export default function DepartmentDetail() {
                                         <span className="text-white">العربية / الإنجليزية</span>
                                     </div>
                                 </div>
-                            </div>
+                            </div> */}
                         </div>
                     </div>
                 </div>
